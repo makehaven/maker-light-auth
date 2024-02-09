@@ -1,0 +1,6 @@
+tool_id=Door
+login_url=https://www.makehaven.org/user/login
+api_url=https://www.makehaven.org/api/v0/{endpoint}/{identifier}/permission/{tool_id}
+username=workstation@makehaven.org
+password=placeholder
+debug_mode=true
