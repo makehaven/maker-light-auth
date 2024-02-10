@@ -3,21 +3,18 @@ import time
 import datetime
 import os
 import csv
+import configparser
+from ending_window import show_ending_window
 
-# Default log file path in the same directory as the script
-default_log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SessionLog.txt")
+# Load configuration
+config = configparser.ConfigParser()
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.txt')
+config.read(config_path)
 
-config = {}  # A dictionary to hold config values
-with open("config.txt", 'r') as config_file:
-    for line in config_file:
-        key, value = line.strip().split('=', 1)
-        config[key] = value
-
-# Override the default log file path if specified in the config
-log_file_path = config.get("log_file_path", default_log_file_path)
+log_file_path = config.get('Logging', 'log_file_path', fallback=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SessionLog.txt"))
 
 class SessionTimerWindow:
-    def __init__(self, user_info=None, log_file_path=None):
+    def __init__(self, user_info=None, log_file_path=log_file_path):
         self.log_file_path = log_file_path  # Store the log file path
         if user_info is None:
             user_info = {'first_name': 'Unregistered', 'last_name': 'User'}
@@ -74,12 +71,16 @@ class SessionTimerWindow:
       
 
     def update_timer(self):
-        elapsed_time = time.time() - self.start_time
-        formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
-        self.timer_label.config(text=formatted_time)
-        self.root.after(1000, self.update_timer)
+        if self.root:  # Check if the root window exists
+            elapsed_time = time.time() - self.start_time
+            formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+            self.timer_label.config(text=formatted_time)
+            self.after_id = self.root.after(1000, self.update_timer) 
 
     def end_session(self):
+        if hasattr(self, 'after_id'):
+            self.root.after_cancel(self.after_id)
+        
         # Calculate session duration
         end_time = time.time()
         session_duration_seconds = end_time - self.start_time
@@ -107,8 +108,15 @@ class SessionTimerWindow:
         with open(self.log_file_path, 'a') as logfile:
             logfile.write(log_entry_txt)
 
-        # Close the window
+        # Additional checks and logic for showing the ending window
+        if config.getboolean('DEFAULT', 'show_ending_window', fallback=False):
+            custom_message = config['DEFAULT'].get('end_message', '')
+            show_experience_scale = config.getboolean('DEFAULT', 'show_experience_scale', fallback=False)
+            tool_numerical_id = config['DEFAULT'].getint('tool_numerical_id', 0)
+            show_ending_window(custom_message, show_experience_scale, tool_numerical_id)
+
         self.root.destroy()
+        self.root = None
 
 
     def start_move(self, event):
@@ -130,7 +138,12 @@ class SessionTimerWindow:
         self.root.mainloop()
 
 if __name__ == "__main__":
-    user_info = {'first_name': 'Test', 'last_name': 'User'}
+    user_info = {
+        'first_name': 'Test',
+        'last_name': 'User',
+        'permission': config.get('Login', 'tool_id'),
+        'station': config.get('Station', 'workstation_id')
+    }
     session_window = SessionTimerWindow(user_info, log_file_path)
     session_window.run()
 

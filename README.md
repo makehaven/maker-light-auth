@@ -18,5 +18,5 @@ Before running this script, ensure you have the following installed:
    ```bash
    pip install requests
    pip install httpx
-   
+   pip install qrcode[pil]
 

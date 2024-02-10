@@ -1,3 +1,4 @@
+
 import requests
 import tkinter as tk
 from tkinter import simpledialog
@@ -5,21 +6,29 @@ from session_timer import SessionTimerWindow
 import datetime
 import os
 import csv
+import configparser
 
 # Load configuration
-script_dir = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE_PATH = os.path.join(script_dir, "config.txt")
-config = {}
+config = configparser.ConfigParser()
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.txt')
+config.read(config_path)
 
-with open(CONFIG_FILE_PATH, 'r') as config_file:
-    for line in config_file:
-        key, value = line.strip().split('=', 1)
-        config[key] = value
+# Accessing Config Values
+login_url = config.get('Login', 'login_url')
+username = config.get('Login', 'username')
+password = config.get('Login', 'password')
+debug_mode = config.getboolean('DEFAULT', 'debug_mode', fallback=False)
+tool_id = config.get('Login', 'tool_id')
+workstation_id = config.get('Station', 'workstation_id')
+api_url_template = config.get('Login', 'api_url')  # Make sure 'API' section exists in your config file
 
 # Determine log file paths based on configuration
-log_file_name = "SessionLog.txt"
-LOG_FILE_PATH = config.get('log_file_path', os.path.join(script_dir, log_file_name))
-CSV_LOG_FILE_PATH = os.path.join(script_dir, "SessionLog.csv")
+script_dir = os.path.dirname(os.path.abspath(__file__))  # Added for clarity
+log_file_name = "SessionLog.txt"  # This line seems to be missing in your script
+LOG_FILE_PATH = config.get('Logging', 'log_file_path', fallback=os.path.join(script_dir, log_file_name))
+CSV_LOG_FILE_PATH = LOG_FILE_PATH.replace('.txt', '.csv')
+
+
 
 def initialize_csv_log_file():
     if not os.path.exists(CSV_LOG_FILE_PATH):
@@ -30,14 +39,13 @@ def initialize_csv_log_file():
 # Initialize CSV log file after configuration and paths are set
 initialize_csv_log_file()
 
-# Determine debug mode
-debug_mode = config.get("debug_mode", "false").lower() == "true"
-
 # GUI setup
 root = tk.Tk()
 root.attributes('-fullscreen', True)
 
-# Debug box setup
+# Debug box setup based on configuration
+debug_mode = config.getboolean('DEFAULT', 'debug_mode', fallback=False)
+
 if debug_mode:
     debug_box = tk.Text(root, height=10, width=100)
     debug_box.pack(side="bottom")
@@ -57,8 +65,12 @@ def update_message(message):
         add_debug_message(f"Updating message: {message}")
 
 def login_to_drupal():
-    login_url = config['login_url']
-    credentials = {"name": config['username'], "pass": config['password']}
+    # Re-access configuration settings within the function
+    login_url = config.get('Login', 'login_url')
+    username = config.get('Login', 'username')
+    password = config.get('Login', 'password')
+    # Proceed with the login attempt
+    credentials = {"name": username, "pass": password}
     response = session.post(login_url, data=credentials)
     if debug_mode:
         add_debug_message(f"Login attempt: {response.status_code}")
@@ -69,13 +81,13 @@ def request_access(identifier, is_email):
         update_message("Login failed. Please check credentials.")
         return None
     endpoint = "email" if is_email else "serial"
-    api_url = config['api_url'].format(endpoint=endpoint, identifier=identifier, tool_id=config['tool_id'])
+    api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, tool_id=tool_id)  # Updated to use variables
     if debug_mode:
         add_debug_message(f"Request URL: {api_url}")
     response = session.get(api_url)
     if debug_mode:
         add_debug_message(f"Access request for {identifier}: {response.status_code}")
-        add_debug_message(f"Response body: {response.text}")  # Add this line to log the response body
+        add_debug_message(f"Response body: {response.text}")
     return response
 
 
@@ -90,8 +102,8 @@ def handle_access(identifier):
                 'first_name': data[0].get('first_name'),
                 'last_name': data[0].get('last_name'),
                 # Include tool and workstation information directly in user_info for simplicity
-                'permission': config.get('tool_id'),  # Assuming you store tool_id in config
-                'station': config.get('workstation_id'),  # Assuming you store workstation_id in config
+                'permission': config.get('Login', 'tool_id'),  # Added the missing comma here
+                'station': config.get('Station', 'workstation_id'),  # Assuming you store workstation_id under [Station]
             }
             update_message(f"Access Granted. Welcome, {user_info['first_name']} {user_info['last_name']}.")
 
@@ -116,7 +128,7 @@ def close_and_start_session(user_info):
     start_user_session(user_info)
     
 def start_user_session(user_info):
-    enable_timer = config.get('enable_timer_window', 'false').lower() == 'true'
+    enable_timer = config.get('SessionTime', 'enable_timer_window', fallback='false').lower() == 'true'
     if enable_timer:
         # This will directly run the session timer window without threading
         session_window = SessionTimerWindow(user_info, log_file_path=LOG_FILE_PATH)
