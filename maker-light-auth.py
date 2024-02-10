@@ -1,17 +1,20 @@
 import requests
 import tkinter as tk
 from tkinter import simpledialog
+from session_timer import SessionTimerWindow
+from threading import Thread
 import datetime
 import os
 
-# Script directory and log file setup
-script_dir = os.path.dirname(os.path.abspath(__file__))
-log_file_name = "SessionLog.txt"
-CONFIG_FILE_PATH = os.path.join(script_dir, "config.txt")
-LOG_FILE_PATH = os.path.join(script_dir, log_file_name)
-
 # Load configuration
+script_dir = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE_PATH = os.path.join(script_dir, "config.txt")
 config = {}
+
+log_file_name = "SessionLog.txt"
+LOG_FILE_PATH = config.get('log_file_path', os.path.join(script_dir, log_file_name))
+
+
 with open(CONFIG_FILE_PATH, 'r') as config_file:
     for line in config_file:
         key, value = line.strip().split('=', 1)
@@ -19,7 +22,6 @@ with open(CONFIG_FILE_PATH, 'r') as config_file:
 
 # Determine debug mode
 debug_mode = config.get("debug_mode", "false").lower() == "true"
-
 
 # GUI setup
 root = tk.Tk()
@@ -75,8 +77,10 @@ def handle_access(identifier):
         if data and data[0]['access'] == "true":
             user_info = data[0]
             update_message(f"Access Granted. Welcome, {user_info['first_name']} {user_info['last_name']}.")
-            log_session("start", user_info)
-            root.after(5000, root.destroy)  # Close the window after a short delay
+
+            # Delay before closing the window to allow the message to be read
+            root.after(1500, lambda: close_and_start_session(user_info))
+
         else:
             update_message("Access Denied. Please try again.")
             root.after(3000, lambda: capture_input(True))  # Retry on denial
@@ -84,11 +88,30 @@ def handle_access(identifier):
         update_message("Failed to contact server or access denied.")
         root.after(3000, lambda: capture_input(True))  # Retry on failure
 
-def log_session(action, user_info=None):
-    with open(LOG_FILE_PATH, 'a') as log_file:
-        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        log_file.write(f"{timestamp} - Session {action} for {user_info.get('first_name', '')} {user_info.get('last_name', '')}\n")
+def close_and_start_session(user_info):
+    # Log the session start
+    log_session("start", user_info, LOG_FILE_PATH)
+    
+    # Close the authentication window
+    root.destroy()
+    
+    # Start the session timer window
+    start_user_session(user_info)
+    
+def start_user_session(user_info):
+    enable_timer = config.get('enable_timer_window', 'false').lower() == 'true'
+    if enable_timer:
+        # This will directly run the session timer window without threading
+        session_window = SessionTimerWindow(user_info, log_file_path=LOG_FILE_PATH)
+        session_window.run()
 
+def log_session(action, user_info, log_file_path=LOG_FILE_PATH):
+    with open(log_file_path, 'a') as log_file:
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # Ensure correct handling of first name and last name
+        first_name = user_info.get('first_name', 'Unknown')
+        last_name = user_info.get('last_name', 'User')
+        log_file.write(f"{timestamp} - Session {action} for {first_name} {last_name}.\n")
 
 # Message label for instructions
 message_label = tk.Label(root, text="Please scan your RFID tag or enter your email to start the session.", font=("Helvetica", 24))

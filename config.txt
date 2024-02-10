@@ -4,3 +4,5 @@ api_url=https://www.makehaven.org/api/v0/{endpoint}/{identifier}/permission/{too
 username=workstation@makehaven.org
 password=placeholder
 debug_mode=true
+enable_timer_window=true
+#defauts to same as script #log_file_path=C:\\Path\\To\\Custom\\SessionLog.txt
