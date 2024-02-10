@@ -2,6 +2,7 @@ import tkinter as tk
 import time
 import datetime
 import os
+import csv
 
 # Default log file path in the same directory as the script
 default_log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SessionLog.txt")
@@ -83,24 +84,30 @@ class SessionTimerWindow:
         end_time = time.time()
         session_duration_seconds = end_time - self.start_time
         session_duration = datetime.timedelta(seconds=int(session_duration_seconds))
-    
-        # Format the duration as HH:MM:SS
-        formatted_duration = str(session_duration)
-    
+
         # Current timestamp for logging
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-        # Directly use the provided first name and last name without modification
-        full_name = f"{self.user_info.get('first_name', 'Unknown')} {self.user_info.get('last_name', 'User')}"
-    
+
+        # Access user info directly
+        first_name = self.user_info.get('first_name', 'Unknown')
+        last_name = self.user_info.get('last_name', 'User')
+        permission = self.user_info.get('permission', 'N/A')
+        station = self.user_info.get('station', 'N/A')
+
         # Prepare log entry for session end
-        log_entry = f"{timestamp} - Session end for {full_name}. Duration: {formatted_duration}.\n"
-    
-        # Write log entry to file
-        with open(self.log_file_path, 'a') as log_file:
-           log_file.write(log_entry)
-    
-        print(f"Session ended for {full_name}. Duration: {formatted_duration}.")  # Optional: Confirmation message in console
+        log_entry_csv = [timestamp, "end", first_name, last_name, permission, station, str(session_duration)]
+        log_entry_txt = f"{timestamp} - Session end for {first_name} {last_name}. Duration: {session_duration}.\n"
+
+        # Write to CSV log file
+        with open(self.log_file_path.replace('.txt', '.csv'), 'a', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(log_entry_csv)
+
+        # Write to plain text log file
+        with open(self.log_file_path, 'a') as logfile:
+            logfile.write(log_entry_txt)
+
+        # Close the window
         self.root.destroy()
 
 

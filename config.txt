@@ -1,3 +1,4 @@
+workstation_id=development
 tool_id=Door
 login_url=https://www.makehaven.org/user/login
 api_url=https://www.makehaven.org/api/v0/{endpoint}/{identifier}/permission/{tool_id}

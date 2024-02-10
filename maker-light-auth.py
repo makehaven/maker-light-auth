@@ -2,23 +2,33 @@ import requests
 import tkinter as tk
 from tkinter import simpledialog
 from session_timer import SessionTimerWindow
-from threading import Thread
 import datetime
 import os
+import csv
 
 # Load configuration
 script_dir = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE_PATH = os.path.join(script_dir, "config.txt")
 config = {}
 
-log_file_name = "SessionLog.txt"
-LOG_FILE_PATH = config.get('log_file_path', os.path.join(script_dir, log_file_name))
-
-
 with open(CONFIG_FILE_PATH, 'r') as config_file:
     for line in config_file:
         key, value = line.strip().split('=', 1)
         config[key] = value
+
+# Determine log file paths based on configuration
+log_file_name = "SessionLog.txt"
+LOG_FILE_PATH = config.get('log_file_path', os.path.join(script_dir, log_file_name))
+CSV_LOG_FILE_PATH = os.path.join(script_dir, "SessionLog.csv")
+
+def initialize_csv_log_file():
+    if not os.path.exists(CSV_LOG_FILE_PATH):
+        with open(CSV_LOG_FILE_PATH, 'w', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration"])
+
+# Initialize CSV log file after configuration and paths are set
+initialize_csv_log_file()
 
 # Determine debug mode
 debug_mode = config.get("debug_mode", "false").lower() == "true"
@@ -75,10 +85,17 @@ def handle_access(identifier):
     if response and response.status_code == 200:
         data = response.json()
         if data and data[0]['access'] == "true":
-            user_info = data[0]
+            # Extract user information
+            user_info = {
+                'first_name': data[0].get('first_name'),
+                'last_name': data[0].get('last_name'),
+                # Include tool and workstation information directly in user_info for simplicity
+                'permission': config.get('tool_id'),  # Assuming you store tool_id in config
+                'station': config.get('workstation_id'),  # Assuming you store workstation_id in config
+            }
             update_message(f"Access Granted. Welcome, {user_info['first_name']} {user_info['last_name']}.")
 
-            # Delay before closing the window to allow the message to be read
+            # Pass user_info and log file path to close_and_start_session function
             root.after(1500, lambda: close_and_start_session(user_info))
 
         else:
@@ -105,13 +122,36 @@ def start_user_session(user_info):
         session_window = SessionTimerWindow(user_info, log_file_path=LOG_FILE_PATH)
         session_window.run()
 
-def log_session(action, user_info, log_file_path=LOG_FILE_PATH):
-    with open(log_file_path, 'a') as log_file:
-        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        # Ensure correct handling of first name and last name
-        first_name = user_info.get('first_name', 'Unknown')
-        last_name = user_info.get('last_name', 'User')
-        log_file.write(f"{timestamp} - Session {action} for {first_name} {last_name}.\n")
+
+def initialize_log_file(log_file_path):
+    # Check if the log file exists
+    if not os.path.exists(log_file_path):
+        with open(log_file_path, 'w', newline='') as file:
+            writer = csv.writer(file)
+            # Updated headers
+            writer.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration"])
+
+def log_session(action, user_info, log_file_path):
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    row = [
+        timestamp, 
+        action, 
+        user_info.get('first_name', 'Unknown'), 
+        user_info.get('last_name', 'User'), 
+        user_info.get('permission', 'N/A'),  # Permission typically holds tool_id
+        user_info.get('station', 'N/A'),  # Station typically holds workstation_id
+        ""  # Duration is empty for session start
+    ]
+    
+    # Write to CSV log file
+    with open(log_file_path.replace('.txt', '.csv'), 'a', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerow(row)
+    
+    # Also write to the plain text log file for backward compatibility
+    with open(log_file_path, 'a') as logfile:
+        logfile.write(f"{timestamp} - Session {action} for {user_info.get('first_name', 'Unknown')} {user_info.get('last_name', 'User')}.\n")
+
 
 # Message label for instructions
 message_label = tk.Label(root, text="Please scan your RFID tag or enter your email to start the session.", font=("Helvetica", 24))
