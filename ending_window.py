@@ -22,34 +22,51 @@ config_path = os.path.join(script_dir, 'config.txt')
 config = configparser.ConfigParser()
 config.read(config_path)
 
-# Nconfiguration values 
+# configuration values 
 show_ending_window = config.getboolean('EndingPage', 'show_ending_window', fallback=False)
-end_message = config.get('EndingPage', 'end_message', fallback="Please remember to clean up.")
 show_experience_scale = config.getboolean('EndingPage', 'show_experience_scale', fallback=False)
+end_message = config.get('EndingPage', 'end_message', fallback="Please remember to clean up.")
 experience_question = config.get('EndingPage', 'experience_question', fallback="How was your experience?")
 high_label = config.get('EndingPage', 'high_label', fallback="Excellent")
 low_label = config.get('EndingPage', 'low_label', fallback="Poor")
-
+tool_numerical_id = config.get('Station', 'tool_numerical_id', fallback="0")
+custom_message = config.get('EndingPage', 'custom_message', fallback="Thank you for using the station.")
 
 def restart_authentication():
+    # Close the current Tkinter window if it exists
     global window
-    try:
-        if window is not None:
+    if window is not None:
+        try:
             window.destroy()
-            window = None  # Ensure to clear the reference
-    except tk.TclError:
-        print("Window was already destroyed.")
-
+        except tk.TclError as e:
+            print(f"Error closing window: {e}")
+    
+    # Restart the authentication process by running maker-light-auth.py script
     script_dir = os.path.dirname(os.path.abspath(__file__))
     script_path = os.path.join(script_dir, "maker-light-auth.py")
+    
+    # Use subprocess to run the script in a new process
     subprocess.Popen([sys.executable, script_path])
-    sys.exit() 
+    
+    # Exit the current script to ensure there's no unintended code execution following this function
+    sys.exit()
 
-def show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, excellent_label, low_label):
+# Function to open URL in a new browser window if possible
+def open_url_new_window(url):
+    try:
+        # Attempt to use system's default browser to open the URL in a new window
+        webbrowser.open_new(url)
+    except Exception as e:
+        print(f"Failed to open URL in a new browser window: {e}")
+
+def show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label):
     global window
     window = tk.Tk()
     window.title("Session Ended")
-    window.geometry("800x600")  # Adjusted window size for better content visibility
+
+    # Make window full screen and non-bypassable
+    window.overrideredirect(True)
+    window.geometry("{0}x{1}+0+0".format(window.winfo_screenwidth(), window.winfo_screenheight()))
 
     # Layout configurations
     window.grid_rowconfigure(1, weight=1)
@@ -58,71 +75,79 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
     # Custom Message
     tk.Label(window, text=custom_message, font=("Helvetica", 18), pady=20).pack()
 
-    # Rating Scale
-    rating_frame = tk.LabelFrame(window, text=experience_question, font=("Helvetica", 14))
-    rating_frame.pack(pady=10)
+    if show_experience_scale:
 
-    def rate_experience(score):
-        messagebox.showinfo("Rating", f"You rated {score}/5")
-        for btn in rating_buttons:
-            btn.config(state=tk.DISABLED)
+        # Rating Scale
+        rating_frame = tk.LabelFrame(window, text=experience_question, font=("Helvetica", 14))
+        rating_frame.pack(pady=10)
 
-    rating_buttons = []
-    colors = ["#ff4d4d", "#ff9999", "#ffff99", "#99ff99", "#00cc00"]  # Gradient from red to green
-    tk.Label(rating_frame, text=low_label, font=("Helvetica", 12)).pack(side=tk.LEFT, padx=5)
-    for i, color in enumerate(colors, start=1):
-        btn = tk.Button(rating_frame, text=str(i), bg=color, command=lambda i=i: rate_experience(i), font=("Helvetica", 12), width=2)
-        btn.pack(side=tk.LEFT, padx=2)
-        rating_buttons.append(btn)
-    tk.Label(rating_frame, text=high_label, font=("Helvetica", 12)).pack(side=tk.LEFT, padx=5)
+        def rate_experience(score):
+            messagebox.showinfo("Rating", f"You rated {score}/5")
+            for btn in rating_buttons:
+                btn.config(state=tk.DISABLED)
 
-    # Consumables Section
-    consumables_frame = tk.LabelFrame(window, text="Materials Used", font=("Helvetica", 14))
-    consumables_frame.pack(fill="both", expand="yes", padx=20, pady=10)
+        rating_buttons = []
+        colors = ["#ff4d4d", "#ff9999", "#ffff99", "#99ff99", "#00cc00"]  # Gradient from red to green
+        tk.Label(rating_frame, text=low_label, font=("Helvetica", 12)).pack(side=tk.LEFT, padx=5)
+        for i, color in enumerate(colors, start=1):
+            btn = tk.Button(rating_frame, text=str(i), bg=color, command=lambda i=i: rate_experience(i), font=("Helvetica", 12), width=2)
+            btn.pack(side=tk.LEFT, padx=2)
+            rating_buttons.append(btn)
+        tk.Label(rating_frame, text=high_label, font=("Helvetica", 12)).pack(side=tk.LEFT, padx=5)
 
+
+
+
+    consumables_frame_outer = tk.Frame(window, padx=20)  # Outer frame for padding
+    consumables_frame_outer.pack(padx=100, pady=20)  # Pad outer frame to center and limit width
+
+    consumables_frame = tk.LabelFrame(consumables_frame_outer, text="Materials for purchase", font=("Helvetica", 14))
+    consumables_frame.pack(fill="both", expand=True) 
+
+    # Assuming a two-column layout for materials
+    column_count = 2  # Number of columns
     materials = fetch_consumables(tool_numerical_id)
-
-    for material_info in materials:
+    for index, material_info in enumerate(materials):
         material = material_info['material']
         label = f"{material['label']} - {material['unit']} - ${material['cost']}"
-        # Pass material directly to open_payment_link function
-        button = ttk.Button(consumables_frame, text=label, command=lambda m=material: open_payment_link(m))
-        button.pack(pady=5, fill='x')
+        row = index // column_count
+        column = index % column_count
+        # Create button with larger font size
+        button = ttk.Button(consumables_frame, text=label, style="Material.TButton", command=lambda m=material: open_payment_link(m))
+        button.grid(row=row, column=column, padx=5, pady=5, sticky="ew")
 
-    # Control Buttons
-    button_frame = tk.Frame(window)
-    button_frame.pack(pady=20)
-    tk.Button(button_frame, text="I did not incur any charges", command=window.destroy, bg="#f0f0f0", font=("Helvetica", 12)).pack(side=tk.LEFT, padx=10)
-    tk.Button(button_frame, text="Someone left this open, I'm closing on their behalf", command=window.destroy, bg="#f0f0f0", font=("Helvetica", 12)).pack(side=tk.LEFT, padx=10)
-    tk.Button(button_frame, text="I have submitted all payments", command=lambda: [window.destroy(), restart_authentication()], bg="#90ee90", font=("Helvetica", 12)).pack(side=tk.LEFT, padx=10)
+    # Apply a style to make the text bigger
+    style = ttk.Style()
+    style.configure("Material.TButton", font=("Helvetica", 14))
 
+    # Configure columns to equally share the frame
+    for i in range(column_count):
+        consumables_frame.grid_columnconfigure(i, weight=1)
+
+
+
+
+    # Reset Station Frame
+    reset_station_frame = tk.LabelFrame(window, text="Reset station for next user", font=("Helvetica", 14), padx=10, pady=10)
+    reset_station_frame.pack(pady=20, padx=20, fill="both", expand=True)
+
+    # Control Buttons within the LabelFrame
+    button_frame = tk.Frame(reset_station_frame)
+    button_frame.pack(expand=True)
+
+    # Less prominent button for "left open by someone else"
+    btn_left_open = tk.Button(button_frame, text="Left open by someone else", command=window.destroy, bg="#d3d3d3", fg="black", font=("Helvetica", 12))
+    btn_left_open.pack(side=tk.BOTTOM, pady=(10, 0))  # Positioned at the bottom, less emphasis
+
+    # Primary actions with more emphasis
+    btn_no_charges = tk.Button(button_frame, text="Incurred no charges", command=window.destroy, bg="#add8e6", fg="black", font=("Helvetica", 12))
+    btn_no_charges.pack(side=tk.LEFT, padx=10, expand=True)
+
+    btn_submitted_payments = tk.Button(button_frame, text="Submitted all payments", command=lambda: [window.destroy(), restart_authentication()], bg="#98fb98", fg="black", font=("Helvetica", 12))
+    btn_submitted_payments.pack(side=tk.RIGHT, padx=10, expand=True)
+
+    
     window.mainloop()
-
-    # Display consumables with more details
-    consumables_frame = tk.LabelFrame(window, text="Materials Used", font=("Helvetica", 14))
-    consumables_frame.pack(fill="both", expand="yes", padx=20, pady=10)
-
-    canvas = tk.Canvas(consumables_frame)
-    scrollbar = ttk.Scrollbar(consumables_frame, orient="vertical", command=canvas.yview)
-    scrollable_frame = ttk.Frame(canvas)
-
-    scrollable_frame.bind(
-        "<Configure>",
-        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-    )
-
-    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-    canvas.configure(yscrollcommand=scrollbar.set)
-
-    canvas.pack(side="left", fill="both", expand=True)
-    scrollbar.pack(side="right", fill="y")
-
-    materials = fetch_consumables(tool_numerical_id)
-    for material in materials:
-        material_data = material['material']
-        label = f"{material_data['label']} - {material_data['unit']} - ${material_data['cost']}"
-        button = ttk.Button(consumables_frame, text=label, command=lambda m=material_data: open_payment_link(m))
-        button.pack(pady=5, fill='x')
 
 
 def open_payment_link(material):
@@ -179,18 +204,6 @@ def open_payment_link(material):
 
     detail_window.mainloop()
 
-
-
-
-    # Control Buttons
-    button_frame = tk.Frame(window)
-    button_frame.pack(pady=20)
-    tk.Button(button_frame, text="I did not incur any charges", command=window.destroy, bg="#f0f0f0", font=("Helvetica", 12)).pack(side=tk.LEFT, padx=10)
-    tk.Button(button_frame, text="Someone left this open, I'm closing on their behalf", command=window.destroy, bg="#f0f0f0", font=("Helvetica", 12)).pack(side=tk.LEFT, padx=10)
-    tk.Button(button_frame, text="I have submitted all payments", command=lambda: [window.destroy(), restart_authentication()], bg="#90ee90", font=("Helvetica", 12)).pack(side=tk.LEFT, padx=10)
-
-    detail_window.mainloop()
-
 def fetch_consumables(tool_numerical_id):
     url = f"https://www.makehaven.org/api/v0/materials/equipment/{tool_numerical_id}"
     response = requests.get(url)
@@ -202,12 +215,5 @@ def fetch_consumables(tool_numerical_id):
         return []
 
 if __name__ == "__main__":
-    # Example usage
-    custom_message = "Thank you for using the workstation. Please review any materials used."
-    show_experience_scale = True
-    tool_numerical_id = 424
-    experience_question = "How was your experience today?"
-    excellent_label = "Excellent"
-    low_label = "Poor"
     show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label)
 
