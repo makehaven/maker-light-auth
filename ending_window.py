@@ -136,14 +136,14 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
     button_frame.pack(expand=True)
 
     # Less prominent button for "left open by someone else"
-    btn_left_open = tk.Button(button_frame, text="Left open by someone else", command=window.destroy, bg="#d3d3d3", fg="black", font=("Helvetica", 12))
+    btn_left_open = tk.Button(button_frame, text="Not me (reset to login)", command=window.destroy, bg="#d3d3d3", fg="black", font=("Helvetica", 12))
     btn_left_open.pack(side=tk.BOTTOM, pady=(10, 0))  # Positioned at the bottom, less emphasis
 
     # Primary actions with more emphasis
-    btn_no_charges = tk.Button(button_frame, text="Incurred no charges", command=window.destroy, bg="#add8e6", fg="black", font=("Helvetica", 12))
+    btn_no_charges = tk.Button(button_frame, text="Nothing Due", command=lambda: [window.destroy(), restart_authentication()], bg="#add8e6", fg="black", font=("Helvetica", 12))
     btn_no_charges.pack(side=tk.LEFT, padx=10, expand=True)
 
-    btn_submitted_payments = tk.Button(button_frame, text="Submitted all payments", command=lambda: [window.destroy(), restart_authentication()], bg="#98fb98", fg="black", font=("Helvetica", 12))
+    btn_submitted_payments = tk.Button(button_frame, text="I paid", command=lambda: [window.destroy(), restart_authentication()], bg="#98fb98", fg="black", font=("Helvetica", 12))
     btn_submitted_payments.pack(side=tk.RIGHT, padx=10, expand=True)
 
     

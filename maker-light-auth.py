@@ -1,7 +1,6 @@
-
 import requests
 import tkinter as tk
-from tkinter import simpledialog
+from tkinter import ttk, simpledialog, messagebox
 from session_timer import SessionTimerWindow
 import datetime
 import os
@@ -21,14 +20,13 @@ debug_mode = config.getboolean('DEFAULT', 'debug_mode', fallback=False)
 tool_id = config.get('Login', 'tool_id')
 workstation_id = config.get('Station', 'workstation_id')
 api_url_template = config.get('Login', 'api_url')  # Make sure 'API' section exists in your config file
+tool_numerical_id = config.get('Station', 'tool_numerical_id', fallback="0")
 
 # Determine log file paths based on configuration
 script_dir = os.path.dirname(os.path.abspath(__file__))  # Added for clarity
 log_file_name = "SessionLog.txt"  # This line seems to be missing in your script
 LOG_FILE_PATH = config.get('Logging', 'log_file_path', fallback=os.path.join(script_dir, log_file_name))
 CSV_LOG_FILE_PATH = LOG_FILE_PATH.replace('.txt', '.csv')
-
-
 
 def initialize_csv_log_file():
     if not os.path.exists(CSV_LOG_FILE_PATH):
@@ -57,6 +55,39 @@ def add_debug_message(message):
 
 # Session for persistent login state
 session = requests.Session()
+
+# Function to fetch and display upcoming reservations
+def display_upcoming_reservations(master_window, equipment_id):
+    # Fetch reservations data
+    reservations_data = fetch_upcoming_reservations(equipment_id)
+    # Create a frame for displaying reservations
+    reservations_frame = ttk.LabelFrame(master_window, text="Upcoming Reservations", padding="10")
+    reservations_frame.pack(fill="x", padx=20, pady=10, before=message_label)  # Ensure it's packed above the message label
+    
+    if reservations_data:
+        for reservation in reservations_data:
+            reservation_info = reservation["reservation"]  # Adjusted according to your JSON structure
+            label_text = f"{reservation_info['asset']} - {reservation_info['range']} - {reservation_info['name']}"
+            reservation_label = tk.Label(reservations_frame, text=label_text, wraplength=400, anchor="w", justify="left", font=("Helvetica", 12))
+            reservation_label.pack(fill='x', pady=2)
+            reservation_label.config(font=("Helvetica", 14))
+    else:
+        no_reservations_label = tk.Label(reservations_frame, text="No upcoming reservations.", anchor="w")
+        no_reservations_label.pack(fill='x')
+        no_reservations_label.config(font=("Helvetica", 14))
+
+def fetch_upcoming_reservations(equipment_id):
+    api_url = f"https://makehaven.org/api/v0/reservation/upcoming/equipment/{equipment_id}"
+    try:
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            data = response.json()
+            return data["reservations"]  # Adjust according to actual JSON structure
+        else:
+            print(f"Error fetching reservation data: {response.status_code}")
+    except requests.RequestException as e:
+        print(f"Error fetching reservation data: {e}")
+    return []
 
 def update_message(message):
     message_label.config(text=message)
@@ -90,7 +121,6 @@ def request_access(identifier, is_email):
         add_debug_message(f"Response body: {response.text}")
     return response
 
-
 def handle_access(identifier):
     is_email = "@" in identifier
     response = request_access(identifier, is_email)
@@ -112,7 +142,7 @@ def handle_access(identifier):
 
         else:
             update_message("Access Denied. Please try again.")
-            root.after(3000, lambda: capture_input(True))  # Retry on denial
+            root.after(3000, lambda: capture_input(True))  
     else:
         update_message("Failed to contact server or access denied.")
         root.after(3000, lambda: capture_input(True))  # Retry on failure
@@ -133,7 +163,6 @@ def start_user_session(user_info):
         # This will directly run the session timer window without threading
         session_window = SessionTimerWindow(user_info, log_file_path=LOG_FILE_PATH)
         session_window.run()
-
 
 def initialize_log_file(log_file_path):
     # Check if the log file exists
@@ -171,17 +200,31 @@ message_label.pack(expand=True, fill=tk.X, pady=(50, 0))
 
 # Input capture function
 def capture_input(retry=False):
-    if retry:
-        message_label.config(text="Please try again. Scan your RFID tag or enter your email:")
-    else:
-        message_label.config(text="Please scan your RFID tag or enter your email to start the session.")
-    root.update()
-    identifier = simpledialog.askstring("Input", "Scan RFID Tag or Enter Email:", parent=root)
-    if identifier:
-        handle_access(identifier)
-    else:
-        update_message("No input detected. Please scan your RFID tag or enter your email.")
-        root.after(3000, lambda: capture_input(True))
+    def on_input_close():
+        if not input_received[0]:  # Re-prompt if input was not received
+            root.after(100, capture_input)
+    
+    input_received = [False]  # Use a list to modify it inside nested function
+    
+    while True:
+        input_value = simpledialog.askstring("Input", "Scan RFID Tag or Enter Email:", parent=root)
+        if input_value:
+            input_received[0] = True  # Mark that input was received
+            handle_access(input_value)  # Your existing logic to handle the access based on input
+            break
+        else:
+            messagebox.showerror("Input Required", "Please scan your RFID tag or enter your email.")
+            continue  # Ensure the loop continues until valid input is received
+    
+    root.protocol("WM_DELETE_WINDOW", on_input_close)  # Modify window closing behavior
+
+# Display reservations in the main window
+display_upcoming_reservations(root, tool_numerical_id)
+
+# Ensure the input dialog is displayed after a short delay to allow the main window to initialize
+root.after(100, capture_input)
+
+root.mainloop()
 
 # Closing function
 def on_closing():

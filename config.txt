@@ -1,6 +1,10 @@
+
+[DEFAULT]
+debug_mode = True
+
 [Station]
 workstation_id = development
-tool_numerical_id = 424
+tool_numerical_id = 4553
 
 [Login]
 tool_id = Door
@@ -11,7 +15,6 @@ password = placeholder
 
 [SessionTime]
 enable_timer_window = true
-debug_mode = true
 
 [EndingPage]
 show_ending_window = true

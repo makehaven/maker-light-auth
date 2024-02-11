@@ -4,6 +4,8 @@ import datetime
 import os
 import csv
 import configparser
+import subprocess
+import sys
 from ending_window import show_ending_window
 
 # Load configuration
@@ -80,43 +82,26 @@ class SessionTimerWindow:
     def end_session(self):
         if hasattr(self, 'after_id'):
             self.root.after_cancel(self.after_id)
-        
-        # Calculate session duration
-        end_time = time.time()
-        session_duration_seconds = end_time - self.start_time
-        session_duration = datetime.timedelta(seconds=int(session_duration_seconds))
 
-        # Current timestamp for logging
+        # Log session end
+        end_time = time.time()
+        session_duration = end_time - self.start_time
+        duration_str = str(datetime.timedelta(seconds=int(session_duration)))
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # Access user info directly
-        first_name = self.user_info.get('first_name', 'Unknown')
-        last_name = self.user_info.get('last_name', 'User')
-        permission = self.user_info.get('permission', 'N/A')
-        station = self.user_info.get('station', 'N/A')
-
-        # Prepare log entry for session end
-        log_entry_csv = [timestamp, "end", first_name, last_name, permission, station, str(session_duration)]
-        log_entry_txt = f"{timestamp} - Session end for {first_name} {last_name}. Duration: {session_duration}.\n"
-
-        # Write to CSV log file
+        log_entry = [timestamp, "end", self.user_info['first_name'], self.user_info['last_name'], self.user_info.get('permission', 'N/A'), self.user_info.get('station', 'N/A'), duration_str]
         with open(self.log_file_path.replace('.txt', '.csv'), 'a', newline='') as csvfile:
-            csvwriter = csv.writer(csvfile)
-            csvwriter.writerow(log_entry_csv)
-
-        # Write to plain text log file
+            csv.writer(csvfile).writerow(log_entry)
         with open(self.log_file_path, 'a') as logfile:
-            logfile.write(log_entry_txt)
+            logfile.write(f"{timestamp} - Session end. Duration: {duration_str}.\n")
 
-        # Additional checks and logic for showing the ending window
-        if config.getboolean('DEFAULT', 'show_ending_window', fallback=False):
-            custom_message = config['DEFAULT'].get('end_message', '')
-            show_experience_scale = config.getboolean('DEFAULT', 'show_experience_scale', fallback=False)
-            tool_numerical_id = config['DEFAULT'].getint('tool_numerical_id', 0)
-            show_ending_window(custom_message, show_experience_scale, tool_numerical_id)
-
+        # Destroy the current window
         self.root.destroy()
-        self.root = None
+
+        # Directly call the ending window script without passing parameters
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        ending_window_script_path = os.path.join(script_dir, "ending_window.py")
+        subprocess.Popen([sys.executable, ending_window_script_path])
 
 
     def start_move(self, event):
