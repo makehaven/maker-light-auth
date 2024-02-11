@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import webbrowser
 import requests
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 import qrcode
 import configparser
 import os
@@ -129,13 +129,25 @@ def open_payment_link(material):
     detail_window.title(material['label'])
 
     # Generate QR Code
-    qr = qrcode.make(material['purchase'])
-    qr_img = qr.get_image()
-    qr_photo = ImageTk.PhotoImage(image=qr_img)
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(material['purchase'])
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color='black', back_color='white')
+
+    # Convert QR code to PIL image for resizing
+    qr_img_pil = qr_img.convert("RGB")
+    qr_img_resized = qr_img_pil.resize((150, 150), Image.LANCZOS)  # Use Image.LANCZOS for high-quality downsampling
+
+    qr_photo = ImageTk.PhotoImage(image=qr_img_resized)
 
     # Display QR Code
     qr_label = tk.Label(detail_window, image=qr_photo)
-    qr_label.image = qr_photo  # keep a reference!
+    qr_label.image = qr_photo  # keep a reference to prevent garbage-collection
     qr_label.pack(pady=10)
 
     # Display Material Info
