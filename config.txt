@@ -1,9 +1,26 @@
-workstation_id=development
-tool_id=Door
-login_url=https://www.makehaven.org/user/login
-api_url=https://www.makehaven.org/api/v0/{endpoint}/{identifier}/permission/{tool_id}
-username=workstation@makehaven.org
-password=placeholder
-debug_mode=true
-enable_timer_window=true
-#defauts to same as script #log_file_path=C:\\Path\\To\\Custom\\SessionLog.txt
+[Station]
+workstation_id = development
+tool_numerical_id = 424
+
+[Login]
+tool_id = Door
+api_url = https://www.makehaven.org/api/v0/{endpoint}/{identifier}/permission/{tool_id}
+login_url = https://www.makehaven.org/user/login
+username = workstation@makehaven.org
+password = placeholder
+
+[SessionTime]
+enable_timer_window = true
+debug_mode = true
+
+[EndingPage]
+show_ending_window = true
+end_message = Remember to clean up and turn off the lights.
+show_experience_scale = true
+api_material_url = TBD
+experience_question = How was your experience this session?
+high_label = Excellent
+low_label = Poor
+
+[Logging]
+log_file_path = ./SessionLog.txt
