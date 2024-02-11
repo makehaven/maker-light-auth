@@ -8,6 +8,7 @@ import configparser
 import os
 import subprocess
 import sys
+from io import BytesIO
 
 window = None
 
@@ -128,6 +129,26 @@ def open_payment_link(material):
     detail_window = tk.Toplevel()
     detail_window.title(material['label'])
 
+    # Fetch and display the material image
+    try:
+        image_url = material['image']['src']
+        image_response = requests.get(image_url, stream=True)
+        image_response.raw.decode_content = True
+        material_image = Image.open(image_response.raw)
+
+        # Resize the image while maintaining the aspect ratio
+        base_height = 100
+        img_ratio = base_height / float(material_image.size[1])
+        new_width = int((float(material_image.size[0]) * float(img_ratio)))
+        material_image = material_image.resize((new_width, base_height), Image.LANCZOS)
+
+        photo_image = ImageTk.PhotoImage(material_image)
+        img_label = tk.Label(detail_window, image=photo_image)
+        img_label.image = photo_image  # keep a reference to prevent garbage-collection
+        img_label.pack(pady=10)
+    except Exception as e:
+        print(f"Failed to load image: {e}")
+
     # Generate QR Code
     qr = qrcode.QRCode(
         version=1,
@@ -137,17 +158,15 @@ def open_payment_link(material):
     )
     qr.add_data(material['purchase'])
     qr.make(fit=True)
-    qr_img = qr.make_image(fill_color='black', back_color='white')
+    qr_img = qr.make_image(fill_color='black', back_color='white').convert('RGB')
 
-    # Convert QR code to PIL image for resizing
-    qr_img_pil = qr_img.convert("RGB")
-    qr_img_resized = qr_img_pil.resize((150, 150), Image.LANCZOS)  # Use Image.LANCZOS for high-quality downsampling
-
+    # Optionally resize QR code (if needed, otherwise comment out the resizing part)
+    qr_img_resized = qr_img.resize((100, 100), Image.LANCZOS)
     qr_photo = ImageTk.PhotoImage(image=qr_img_resized)
 
     # Display QR Code
     qr_label = tk.Label(detail_window, image=qr_photo)
-    qr_label.image = qr_photo  # keep a reference to prevent garbage-collection
+    qr_label.image = qr_photo  # keep a reference!
     qr_label.pack(pady=10)
 
     # Display Material Info
@@ -159,6 +178,8 @@ def open_payment_link(material):
     buy_button.pack(pady=10)
 
     detail_window.mainloop()
+
+
 
 
     # Control Buttons
