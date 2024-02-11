@@ -25,7 +25,6 @@ config.read(config_path)
 show_ending_window = config.getboolean('EndingPage', 'show_ending_window', fallback=False)
 end_message = config.get('EndingPage', 'end_message', fallback="Please remember to clean up.")
 show_experience_scale = config.getboolean('EndingPage', 'show_experience_scale', fallback=False)
-api_material_url = config.get('EndingPage', 'api_material_url', fallback="https://default-url.com/materials")
 experience_question = config.get('EndingPage', 'experience_question', fallback="How was your experience?")
 high_label = config.get('EndingPage', 'high_label', fallback="Excellent")
 low_label = config.get('EndingPage', 'low_label', fallback="Poor")
@@ -80,11 +79,14 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
     consumables_frame = tk.LabelFrame(window, text="Materials Used", font=("Helvetica", 14))
     consumables_frame.pack(fill="both", expand="yes", padx=20, pady=10)
 
-    # Dummy data for materials
     materials = fetch_consumables(tool_numerical_id)
-    for material in materials:
-        material_button = ttk.Button(consumables_frame, text=f"{material['label']} - {material['unit']} - ${material['cost']}", command=lambda link=material['purchase']: webbrowser.open(link))
-        material_button.pack(pady=5, fill="x")
+
+    for material_info in materials:
+        material = material_info['material']
+        label = f"{material['label']} - {material['unit']} - ${material['cost']}"
+        # Pass material directly to open_payment_link function
+        button = ttk.Button(consumables_frame, text=label, command=lambda m=material: open_payment_link(m))
+        button.pack(pady=5, fill='x')
 
     # Control Buttons
     button_frame = tk.Frame(window)
@@ -116,36 +118,36 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
 
     materials = fetch_consumables(tool_numerical_id)
     for material in materials:
-        ttk.Button(scrollable_frame, text=material["label"], command=lambda m=material: open_payment_link(m)).pack(pady=2)
+        material_data = material['material']
+        label = f"{material_data['label']} - {material_data['unit']} - ${material_data['cost']}"
+        button = ttk.Button(consumables_frame, text=label, command=lambda m=material_data: open_payment_link(m))
+        button.pack(pady=5, fill='x')
 
 
 def open_payment_link(material):
     detail_window = tk.Toplevel()
-    detail_window.title(material["label"])
+    detail_window.title(material['label'])
 
     # Generate QR Code
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(material["purchase_link"])
-    qr.make(fit=True)
-    qr_img = qr.make_image(fill='black', back_color='white')
-    img = ImageTk.PhotoImage(qr_img)
-    qr_label = tk.Label(detail_window, image=img)
-    qr_label.image = img  # keep reference to image
+    qr = qrcode.make(material['purchase'])
+    qr_img = qr.get_image()
+    qr_photo = ImageTk.PhotoImage(image=qr_img)
+
+    # Display QR Code
+    qr_label = tk.Label(detail_window, image=qr_photo)
+    qr_label.image = qr_photo  # keep a reference!
     qr_label.pack(pady=10)
 
     # Display Material Info
     material_info = f"{material['label']}\nUnit: {material['unit']}\nPrice: ${material['cost']}"
-    tk.Label(detail_window, text=material_info, font=("Helvetica", 12)).pack(pady=10)
+    tk.Label(detail_window, text=material_info, font=("Helvetica", 12)).pack()
 
-    # Buy Here Button
-    ttk.Button(detail_window, text="Buy Here", command=lambda: webbrowser.open(material["purchase_link"])).pack()
+    # "Buy Here" Button for backup
+    buy_button = ttk.Button(detail_window, text="Buy Here", command=lambda: webbrowser.open(material['purchase']))
+    buy_button.pack(pady=10)
 
     detail_window.mainloop()
+
 
     # Control Buttons
     button_frame = tk.Frame(window)
@@ -157,18 +159,14 @@ def open_payment_link(material):
     detail_window.mainloop()
 
 def fetch_consumables(tool_numerical_id):
-    # Placeholder for actual fetch logic; returning dummy data for demonstration
-    return [{
-        "label": "Laserable Plywood",
-        "unit": "12x12 inches",
-        "cost": "5.00",
-        "purchase": "https://example.com/plywood"
-    }, {
-        "label": "Acrylic Sheet",
-        "unit": "24x24 inches",
-        "cost": "10.00",
-        "purchase": "https://example.com/acrylic"
-    }]
+    url = f"https://www.makehaven.org/api/v0/materials/equipment/{tool_numerical_id}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        return data['materials']
+    else:
+        print(f"Error fetching materials: {response.status_code}")
+        return []
 
 if __name__ == "__main__":
     # Example usage
