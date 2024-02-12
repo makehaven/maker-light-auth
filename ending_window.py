@@ -8,9 +8,13 @@ import configparser
 import os
 import subprocess
 import sys
+from datetime import datetime
 from io import BytesIO
-
+import csv
+import json
 window = None
+
+
 
 # Determine the directory of your script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +35,17 @@ high_label = config.get('EndingPage', 'high_label', fallback="Excellent")
 low_label = config.get('EndingPage', 'low_label', fallback="Poor")
 tool_numerical_id = config.get('Station', 'tool_numerical_id', fallback="0")
 custom_message = config.get('EndingPage', 'custom_message', fallback="Thank you for using the station.")
+LOG_FILE_PATH = os.path.join(script_dir, 'SessionLog.txt')  # Adjust the filename as necessary
+CSV_LOG_FILE_PATH = config.get('Logging', 'csv_log_file_path', fallback=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SessionLog.csv"))
+
+def initialize_csv_log_file():
+    if not os.path.exists(CSV_LOG_FILE_PATH):
+        with open(CSV_LOG_FILE_PATH, 'w', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration","Rating", "Details"])
+
+initialize_csv_log_file()
+
 
 def restart_authentication():
     # Close the current Tkinter window if it exists
@@ -59,7 +74,7 @@ def open_url_new_window(url):
     except Exception as e:
         print(f"Failed to open URL in a new browser window: {e}")
 
-def show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label):
+def show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info):
     global window
     window = tk.Tk()
     window.title("Session Ended")
@@ -83,6 +98,7 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
 
         def rate_experience(score):
             messagebox.showinfo("Rating", f"You rated {score}/5")
+            log_event("Rating Submitted", f"Score: {score}", user_info)
             for btn in rating_buttons:
                 btn.config(state=tk.DISABLED)
 
@@ -136,14 +152,14 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
     button_frame.pack(expand=True)
 
     # Less prominent button for "left open by someone else"
-    btn_left_open = tk.Button(button_frame, text="Not me (reset to login)", command=window.destroy, bg="#d3d3d3", fg="black", font=("Helvetica", 12))
+    btn_left_open = tk.Button(button_frame, text="Not me (reset to login)", command=lambda: [log_event("Not Me", "", user_info), window.destroy(), restart_authentication()], bg="#add8e6", fg="black", font=("Helvetica", 12))
     btn_left_open.pack(side=tk.BOTTOM, pady=(10, 0))  # Positioned at the bottom, less emphasis
 
     # Primary actions with more emphasis
-    btn_no_charges = tk.Button(button_frame, text="Nothing Due", command=lambda: [window.destroy(), restart_authentication()], bg="#add8e6", fg="black", font=("Helvetica", 12))
+    btn_no_charges = tk.Button(button_frame, text="Nothing Due", command=lambda: [log_event("Nothing Due", "", user_info), window.destroy(), restart_authentication()], bg="#add8e6", fg="black", font=("Helvetica", 12))
     btn_no_charges.pack(side=tk.LEFT, padx=10, expand=True)
 
-    btn_submitted_payments = tk.Button(button_frame, text="I paid", command=lambda: [window.destroy(), restart_authentication()], bg="#98fb98", fg="black", font=("Helvetica", 12))
+    btn_submitted_payments = tk.Button(button_frame, text="I paid", command=lambda: [log_event("Payment Submitted", "", user_info), window.destroy(), restart_authentication()], bg="#98fb98", fg="black", font=("Helvetica", 12))
     btn_submitted_payments.pack(side=tk.RIGHT, padx=10, expand=True)
 
     
@@ -204,6 +220,24 @@ def open_payment_link(material):
 
     detail_window.mainloop()
 
+def log_event(action, details, user_info=None):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    first_name = user_info.get('first_name', 'Unknown') if user_info else 'Unknown'
+    last_name = user_info.get('last_name', 'User') if user_info else 'User'
+    # Prepare the CSV log entry
+    log_entry_csv = [timestamp, action, first_name, last_name, details]
+    # Prepare the text log entry
+    log_entry_text = f"{timestamp} - {action} - {first_name} {last_name}: {details}\n"
+
+    # Write to CSV file
+    with open(CSV_LOG_FILE_PATH, 'a', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerow(log_entry_csv)
+
+    # Write to text file
+    with open(LOG_FILE_PATH, 'a') as log_file:
+        log_file.write(log_entry_text)
+
 def fetch_consumables(tool_numerical_id):
     url = f"https://www.makehaven.org/api/v0/materials/equipment/{tool_numerical_id}"
     response = requests.get(url)
@@ -214,6 +248,14 @@ def fetch_consumables(tool_numerical_id):
         print(f"Error fetching materials: {response.status_code}")
         return []
 
-if __name__ == "__main__":
-    show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label)
 
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        user_info_path = sys.argv[1]
+        with open(user_info_path, 'r') as f:
+            user_info = json.load(f)
+        os.remove(user_info_path)  # Clean up the temporary file
+    else:
+        user_info = {'first_name': 'Unknown', 'last_name': 'User'}  # Default values
+
+    show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info)

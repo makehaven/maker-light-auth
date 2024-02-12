@@ -7,6 +7,7 @@ import configparser
 import subprocess
 import sys
 from ending_window import show_ending_window
+import json
 
 # Load configuration
 config = configparser.ConfigParser()
@@ -94,14 +95,20 @@ class SessionTimerWindow:
             csv.writer(csvfile).writerow(log_entry)
         with open(self.log_file_path, 'a') as logfile:
             logfile.write(f"{timestamp} - Session end. Duration: {duration_str}.\n")
-
+        
         # Destroy the current window
         self.root.destroy()
 
+        # Save user_info to a temporary JSON file
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        user_info_path = os.path.join(script_dir, "user_info_temp.json")
+        with open(user_info_path, 'w') as f:
+            json.dump(self.user_info, f)
+        
         # Directly call the ending window script without passing parameters
         script_dir = os.path.dirname(os.path.abspath(__file__))
         ending_window_script_path = os.path.join(script_dir, "ending_window.py")
-        subprocess.Popen([sys.executable, ending_window_script_path])
+        subprocess.Popen([sys.executable, ending_window_script_path, user_info_path])
 
 
     def start_move(self, event):

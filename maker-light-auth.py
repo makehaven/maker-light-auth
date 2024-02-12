@@ -62,13 +62,17 @@ def display_upcoming_reservations(master_window, equipment_id):
     reservations_data = fetch_upcoming_reservations(equipment_id)
     # Create a frame for displaying reservations
     reservations_frame = ttk.LabelFrame(master_window, text="Upcoming Reservations", padding="10")
-    reservations_frame.pack(fill="x", padx=20, pady=10, before=message_label)  # Ensure it's packed above the message label
-    
+    reservations_frame.pack(fill="both", expand=True, padx=20, pady=20)
+    # Adding an invisible label with a specific width and height to enforce minimum size
+    invisible_label = tk.Label(reservations_frame, text="", width=100, height=5)
+    invisible_label.pack()
+
+
     if reservations_data:
         for reservation in reservations_data:
             reservation_info = reservation["reservation"]  # Adjusted according to your JSON structure
             label_text = f"{reservation_info['asset']} - {reservation_info['range']} - {reservation_info['name']}"
-            reservation_label = tk.Label(reservations_frame, text=label_text, wraplength=400, anchor="w", justify="left", font=("Helvetica", 12))
+            reservation_label = tk.Label(reservations_frame, text=label_text, wraplength=1000, anchor="w", justify="center", font=("Helvetica", 14))
             reservation_label.pack(fill='x', pady=2)
             reservation_label.config(font=("Helvetica", 14))
     else:
