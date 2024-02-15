@@ -12,6 +12,7 @@ api_url = https://www.makehaven.org/api/v0/{endpoint}/{identifier}/permission/{t
 login_url = https://www.makehaven.org/user/login
 username = workstation@makehaven.org
 password = placeholder
+test_url = https://makehaven.org/api/v0/email/johnrichardlogan@gmail.com/permission/door
 
 [SessionTime]
 enable_timer_window = true

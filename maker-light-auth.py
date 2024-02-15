@@ -6,6 +6,7 @@ import datetime
 import os
 import csv
 import configparser
+from loguru import logger
 
 # Load configuration
 config = configparser.ConfigParser()
@@ -99,31 +100,58 @@ def update_message(message):
     if debug_mode:
         add_debug_message(f"Updating message: {message}")
 
+# Global session for persistent login state
+session = None
+
 def login_to_drupal():
-    # Re-access configuration settings within the function
+    global session
+    session = requests.Session()
     login_url = config.get('Login', 'login_url')
     username = config.get('Login', 'username')
     password = config.get('Login', 'password')
-    # Proceed with the login attempt
-    credentials = {"name": username, "pass": password}
-    response = session.post(login_url, data=credentials)
-    if debug_mode:
-        add_debug_message(f"Login attempt: {response.status_code}")
-    return response.status_code == 200
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.155 Safari/537.36",
+        "cache-control": "private, max-age=0, no-cache",
+    }
+
+    session.headers.update(headers)
+
+    try:
+        response = session.post(login_url, data={"name": username, "pass": password, "form_id": "user_login", "op": "Log in",})
+        if response.status_code == 200:
+            return True
+    except Exception as e:
+        print(f"Login failed: {e}")
+    return False
 
 def request_access(identifier, is_email):
-    if not login_to_drupal():
-        update_message("Login failed. Please check credentials.")
-        return None
+    global session  # Ensure session is recognized as global if not already defined
+    if session is None:
+        if not login_to_drupal():
+            if debug_mode:
+                add_debug_message("Login failed. Please check credentials.")
+            return None
     endpoint = "email" if is_email else "serial"
-    api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, tool_id=tool_id)  # Updated to use variables
+    api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, tool_id=tool_id)
+
+    response = session.get(api_url)
+    
+    # Debug messages should be logged before any return statement to ensure they execute
     if debug_mode:
         add_debug_message(f"Request URL: {api_url}")
-    response = session.get(api_url)
-    if debug_mode:
         add_debug_message(f"Access request for {identifier}: {response.status_code}")
-        add_debug_message(f"Response body: {response.text}")
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                add_debug_message(f"Response JSON: {response_data}")
+            except ValueError:
+                add_debug_message("Response body could not be converted to JSON.")
+        else:
+            add_debug_message(f"Response body: {response.text}")
+
     return response
+
 
 def handle_access(identifier):
     is_email = "@" in identifier
