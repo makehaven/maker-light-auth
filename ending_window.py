@@ -20,7 +20,7 @@ window = None
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Build the path to the configuration file
-config_path = os.path.join(script_dir, 'config.txt')
+config_path = os.path.join(script_dir, 'config.ini')
 
 # Load configuration
 config = configparser.ConfigParser()
@@ -66,6 +66,14 @@ def restart_authentication():
     # Exit the current script to ensure there's no unintended code execution following this function
     sys.exit()
 
+def safe_destroy(window):
+    """Safely destroy a Tkinter window."""
+    try:
+        if window.winfo_exists():
+            window.destroy()
+    except Exception as e:
+        print("Error closing window:", e)
+
 # Function to open URL in a new browser window if possible
 def open_url_new_window(url):
     try:
@@ -73,6 +81,25 @@ def open_url_new_window(url):
         webbrowser.open_new(url)
     except Exception as e:
         print(f"Failed to open URL in a new browser window: {e}")
+
+def log_event_with_comments(action, rating, comments, user_info=None):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    first_name = user_info.get('first_name', 'Unknown') if user_info else 'Unknown'
+    last_name = user_info.get('last_name', 'Unknown') if user_info else 'Unknown'
+    # Prepare the CSV log entry with comments
+    log_entry_csv = [timestamp, action, first_name, last_name, "", "", "", rating, comments]
+    # Prepare the text log entry with comments
+    log_entry_text = f"{timestamp} - {action} - {first_name} {last_name}: Rating: {rating}, Comments: {comments}\n"
+
+    # Write to CSV file
+    with open(CSV_LOG_FILE_PATH, 'a', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerow(log_entry_csv)
+
+    # Write to text file
+    with open(LOG_FILE_PATH, 'a') as log_file:
+        log_file.write(log_entry_text)
+
 
 def show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info):
     global window
@@ -97,8 +124,27 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
         rating_frame.pack(pady=10)
 
         def rate_experience(score):
+             # Show message box for the rating
             messagebox.showinfo("Rating", f"You rated {score}/5")
-            log_event("Rating Submitted", f"Score: {score}", user_info)
+            
+            # Open a new window to ask for comments
+            comment_window = tk.Toplevel(window)
+            comment_window.title("Additional Comments")
+            comment_window.geometry("400x200")  # Adjust size as necessary
+
+            tk.Label(comment_window, text="Any comments on your experience?", font=("Helvetica", 12)).pack(pady=(20, 10))
+            comment_text = tk.Text(comment_window, height=4, width=40)
+            comment_text.pack(pady=(0, 20))
+
+            def submit_comments():
+                comments = comment_text.get("1.0", "end-1c")
+                log_event_with_comments("rating", score, comments, user_info)
+                comment_window.destroy()
+                
+            submit_btn = tk.Button(comment_window, text="Submit", command=submit_comments)
+            submit_btn.pack()
+
+            # Disable the rating buttons to prevent multiple submissions
             for btn in rating_buttons:
                 btn.config(state=tk.DISABLED)
 
@@ -152,14 +198,14 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
     button_frame.pack(expand=True)
 
     # Less prominent button for "left open by someone else"
-    btn_left_open = tk.Button(button_frame, text="Not me (reset to login)", command=lambda: [log_event("Not Me", "", user_info), window.destroy(), restart_authentication()], bg="#add8e6", fg="black", font=("Helvetica", 12))
+    btn_left_open = tk.Button(button_frame, text="Not me (reset to login)", command=lambda: [log_event("not_me", "", user_info), safe_destroy(window), restart_authentication()], bg="#add8e6", fg="black", font=("Helvetica", 12))
     btn_left_open.pack(side=tk.BOTTOM, pady=(10, 0))  # Positioned at the bottom, less emphasis
 
     # Primary actions with more emphasis
-    btn_no_charges = tk.Button(button_frame, text="Nothing Due", command=lambda: [log_event("Nothing Due", "", user_info), window.destroy(), restart_authentication()], bg="#add8e6", fg="black", font=("Helvetica", 12))
+    btn_no_charges = tk.Button(button_frame, text="Nothing Due", command=lambda: [log_event("nothing_due", "", user_info), safe_destroy(window), restart_authentication()], bg="#add8e6", fg="black", font=("Helvetica", 12))
     btn_no_charges.pack(side=tk.LEFT, padx=10, expand=True)
 
-    btn_submitted_payments = tk.Button(button_frame, text="I paid", command=lambda: [log_event("Payment Submitted", "", user_info), window.destroy(), restart_authentication()], bg="#98fb98", fg="black", font=("Helvetica", 12))
+    btn_submitted_payments = tk.Button(button_frame, text="I paid", command=lambda: [log_event("payment_submitted", "", user_info), safe_destroy(window), restart_authentication()], bg="#98fb98", fg="black", font=("Helvetica", 12))
     btn_submitted_payments.pack(side=tk.RIGHT, padx=10, expand=True)
 
     
@@ -215,19 +261,19 @@ def open_payment_link(material):
     tk.Label(detail_window, text=material_info, font=("Helvetica", 12)).pack()
 
     # "Buy Here" Button for backup
-    buy_button = ttk.Button(detail_window, text="Buy Here", command=lambda: webbrowser.open(material['purchase']))
-    buy_button.pack(pady=10)
+    #buy_button = ttk.Button(detail_window, text="Buy Here", command=lambda: webbrowser.open(material['purchase']))
+    #buy_button.pack(pady=10)
 
     detail_window.mainloop()
 
-def log_event(action, details, user_info=None):
+def log_event(action, rating, user_info=None):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     first_name = user_info.get('first_name', 'Unknown') if user_info else 'Unknown'
-    last_name = user_info.get('last_name', 'User') if user_info else 'User'
+    last_name = user_info.get('last_name', 'Unknown') if user_info else 'Unknown'
     # Prepare the CSV log entry
-    log_entry_csv = [timestamp, action, first_name, last_name, details]
+    log_entry_csv = [timestamp, action, first_name, last_name," "," "," ", rating]
     # Prepare the text log entry
-    log_entry_text = f"{timestamp} - {action} - {first_name} {last_name}: {details}\n"
+    log_entry_text = f"{timestamp} - {action} - {first_name} {last_name}: {rating}\n"
 
     # Write to CSV file
     with open(CSV_LOG_FILE_PATH, 'a', newline='') as csvfile:
@@ -256,6 +302,6 @@ if __name__ == "__main__":
             user_info = json.load(f)
         os.remove(user_info_path)  # Clean up the temporary file
     else:
-        user_info = {'first_name': 'Unknown', 'last_name': 'User'}  # Default values
+        user_info = {'first_name': 'Unknown', 'last_name': 'Unknown'}  # Default values
 
     show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info)

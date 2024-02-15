@@ -10,7 +10,7 @@ from loguru import logger
 
 # Load configuration
 config = configparser.ConfigParser()
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.txt')
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
 config.read(config_path)
 
 # Accessing Config Values
@@ -18,7 +18,7 @@ login_url = config.get('Login', 'login_url')
 username = config.get('Login', 'username')
 password = config.get('Login', 'password')
 debug_mode = config.getboolean('DEFAULT', 'debug_mode', fallback=False)
-tool_id = config.get('Login', 'tool_id')
+permission_id = config.get('Login', 'permission_id')
 workstation_id = config.get('Station', 'workstation_id')
 api_url_template = config.get('Login', 'api_url')  # Make sure 'API' section exists in your config file
 tool_numerical_id = config.get('Station', 'tool_numerical_id', fallback="0")
@@ -133,7 +133,7 @@ def request_access(identifier, is_email):
                 add_debug_message("Login failed. Please check credentials.")
             return None
     endpoint = "email" if is_email else "serial"
-    api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, tool_id=tool_id)
+    api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, permission_id=permission_id)
 
     response = session.get(api_url)
     
@@ -164,7 +164,7 @@ def handle_access(identifier):
                 'first_name': data[0].get('first_name'),
                 'last_name': data[0].get('last_name'),
                 # Include tool and workstation information directly in user_info for simplicity
-                'permission': config.get('Login', 'tool_id'),  # Added the missing comma here
+                'permission': config.get('Login', 'permission_id'),  # Added the missing comma here
                 'station': config.get('Station', 'workstation_id'),  # Assuming you store workstation_id under [Station]
             }
             update_message(f"Access Granted. Welcome, {user_info['first_name']} {user_info['last_name']}.")
@@ -202,7 +202,7 @@ def initialize_log_file(log_file_path):
         with open(log_file_path, 'w', newline='') as file:
             writer = csv.writer(file)
             # Updated headers
-            writer.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration"])
+            writer.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration", "Rating", "Comments"])
 
 def log_session(action, user_info, log_file_path):
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -211,7 +211,7 @@ def log_session(action, user_info, log_file_path):
         action, 
         user_info.get('first_name', 'Unknown'), 
         user_info.get('last_name', 'User'), 
-        user_info.get('permission', 'N/A'),  # Permission typically holds tool_id
+        user_info.get('permission', 'N/A'),  # Permission typically holds permission_id
         user_info.get('station', 'N/A'),  # Station typically holds workstation_id
         ""  # Duration is empty for session start
     ]

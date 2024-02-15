@@ -6,12 +6,11 @@ import csv
 import configparser
 import subprocess
 import sys
-from ending_window import show_ending_window
 import json
 
 # Load configuration
 config = configparser.ConfigParser()
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.txt')
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
 config.read(config_path)
 
 log_file_path = config.get('Logging', 'log_file_path', fallback=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SessionLog.txt"))
@@ -75,6 +74,8 @@ class SessionTimerWindow:
                                  bg='#D35F5F', fg='white', font=('Helvetica', 10, 'bold'),
                                  relief='flat', bd=1)
         self.end_session_btn.pack(side=tk.RIGHT, padx=5)
+
+        pass
       
 
     def update_timer(self):
@@ -83,6 +84,8 @@ class SessionTimerWindow:
             formatted_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
             self.timer_label.config(text=formatted_time)
             self.after_id = self.root.after(1000, self.update_timer) 
+
+            pass
 
     def end_session(self):
         if hasattr(self, 'after_id'):
@@ -103,17 +106,16 @@ class SessionTimerWindow:
         with open(self.log_file_path, 'a') as logfile:
             logfile.write(f"{timestamp} - Session end. Duration: {duration_str}.\n")
         
-        # Save user_info to a temporary JSON file
-        user_info_path = "user_info_temp.json"  # Path where user info will be saved
-        with open(user_info_path, 'w') as f:
-            json.dump(self.user_info, f)
-        
-        # Call the ending window script with user_info_path as an argument
-        ending_window_script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ending_window.py")
+        # Save user_info to a temporary JSON file for ending_window.py to use
+        user_info_path = os.path.join(os.path.dirname(__file__), "user_info_temp.json")
+        with open(user_info_path, 'w') as file:
+            json.dump(self.user_info, file)
+
+        # Call ending_window.py, passing the path to the user_info JSON
+        ending_window_script_path = os.path.join(os.path.dirname(__file__), "ending_window.py")
         subprocess.Popen([sys.executable, ending_window_script_path, user_info_path])
 
-        # Destroy the current window
-        self.root.destroy()
+        self.root.destroy()  # Close the timer window
 
 
     def start_move(self, event):
@@ -136,11 +138,23 @@ class SessionTimerWindow:
         self.root.mainloop()
 
 if __name__ == "__main__":
+    config = configparser.ConfigParser()
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
+    config.read(config_path)
+
+    permission_id = config.get('Login', 'permission_id', fallback='default_permission_id')
+    workstation_id = config.get('Station', 'workstation_id', fallback='default_workstation_id')
+
     user_info = {
-        'first_name': 'Test',
-        'last_name': 'User',
-        'permission': config.get('Login', 'tool_id'),
-        'station': config.get('Station', 'workstation_id')
+        'first_name': 'Unknown',
+        'last_name': 'Unknown',
+        'permission': permission_id,
+        'station': workstation_id
     }
-    session_window = SessionTimerWindow(user_info, log_file_path)
-    session_window.root.mainloop()
+
+    session_window = SessionTimerWindow(user_info=user_info)
+
+    if session_window.root.winfo_exists():
+        session_window.root.protocol("WM_DELETE_WINDOW", session_window.on_closing)
+
+    session_window.run()
