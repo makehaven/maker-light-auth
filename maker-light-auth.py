@@ -7,6 +7,7 @@ import os
 import csv
 import configparser
 from loguru import logger
+import json
 
 # Load configuration
 config = configparser.ConfigParser()
@@ -169,6 +170,9 @@ def handle_access(identifier):
             }
             update_message(f"Access Granted. Welcome, {user_info['first_name']} {user_info['last_name']}.")
 
+            # Write user data to the temporary JSON file before starting the session
+            write_user_data_to_temp_json(user_info)
+
             # Pass user_info and log file path to close_and_start_session function
             root.after(1500, lambda: close_and_start_session(user_info))
 
@@ -188,7 +192,20 @@ def close_and_start_session(user_info):
     
     # Start the session timer window
     start_user_session(user_info)
-    
+
+def write_user_data_to_temp_json(user_info):
+    # Define a path for the temporary JSON file
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    temp_json_path = os.path.join(script_dir, 'temp_user_data.json')
+
+    # Write user data to the temporary JSON file
+    with open(temp_json_path, 'w') as json_file:
+        json.dump(user_info, json_file)
+
+    # Optionally, log that user data has been written
+    print(f"User data written to {temp_json_path}")  # or use logger.info() if you're using Loguru
+
+
 def start_user_session(user_info):
     enable_timer = config.get('SessionTime', 'enable_timer_window', fallback='false').lower() == 'true'
     if enable_timer:
@@ -202,7 +219,7 @@ def initialize_log_file(log_file_path):
         with open(log_file_path, 'w', newline='') as file:
             writer = csv.writer(file)
             # Updated headers
-            writer.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration", "Rating", "Comments"])
+            writer.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration", "Rating", "Comments", "Usage", "Usage Unit"])
 
 def log_session(action, user_info, log_file_path):
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')

@@ -1,4 +1,4 @@
- RFID and Email Access Control Script
+RFID and Email Access Control Script
 
 This Python-based script (`maker-light-auth.py`) enables user authentication via RFID or email, leveraging a Drupal backend for access permissions verification. It features a graphical user interface (GUI) for user interaction, displaying access status promptly.
 
