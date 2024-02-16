@@ -35,7 +35,7 @@ class SessionTimerWindow:
         # Define window size
         window_width = 200
         window_height = 60
-     
+
         # Custom title bar with user's name
         self.title_bar = tk.Frame(self.root, bg="lightgray", relief="raised", bd=0)
         self.title_bar.pack(fill=tk.X)
@@ -63,6 +63,7 @@ class SessionTimerWindow:
         self.setup_ui()
         self.start_time = time.time()
         self.update_timer()
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
        
     def setup_ui(self):
         # Timer label with larger font size
@@ -76,7 +77,10 @@ class SessionTimerWindow:
         self.end_session_btn.pack(side=tk.RIGHT, padx=5)
 
         pass
-      
+    
+    def on_closing(self):
+    # 
+        pass
 
     def update_timer(self):
         if self.root:  # Check if the root window exists
@@ -89,32 +93,34 @@ class SessionTimerWindow:
 
     def end_session(self):
         if hasattr(self, 'after_id'):
-          self.root.after_cancel(self.after_id)
+            self.root.after_cancel(self.after_id)
 
         # Log session end
         end_time = time.time()
         session_duration = end_time - self.start_time
         duration_str = str(datetime.timedelta(seconds=int(session_duration)))
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
+        
         # Log entry for CSV
         log_entry = [timestamp, "end", self.user_info['first_name'], self.user_info['last_name'], self.user_info.get('permission', 'N/A'), self.user_info.get('station', 'N/A'), duration_str]
         with open(self.log_file_path.replace('.txt', '.csv'), 'a', newline='') as csvfile:
             csv.writer(csvfile).writerow(log_entry)
 
-        # Log entry for plain text log
-        with open(self.log_file_path, 'a') as logfile:
-            logfile.write(f"{timestamp} - Session end. Duration: {duration_str}.\n")
-        
-        # Save user_info to a temporary JSON file for ending_window.py to use
-        user_info_path = os.path.join(os.path.dirname(__file__), "user_info_temp.json")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        user_info_path = os.path.join(script_dir, "user_info_temp.json")
+
+        # Save user_info to a temporary JSON file for the next scripts to use
         with open(user_info_path, 'w') as file:
             json.dump(self.user_info, file)
 
-        # Call ending_window.py, passing the path to the user_info JSON
-        ending_window_script_path = os.path.join(os.path.dirname(__file__), "ending_window.py")
-        subprocess.Popen([sys.executable, ending_window_script_path, user_info_path])
+        require_usage_input = config.getboolean('UsageInput', 'require_usage_input', fallback=False)
 
+        # Determine the next script to call based on require_usage_input
+        next_script_path = os.path.join(script_dir, "usage_input.py") if require_usage_input else os.path.join(script_dir, "ending_window.py")
+        
+        # Call the determined script, passing the path to the user_info JSON
+        subprocess.Popen([sys.executable, next_script_path, user_info_path])
+        
         self.root.destroy()  # Close the timer window
 
 

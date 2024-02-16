@@ -11,6 +11,7 @@ import math
 import csv
 import subprocess
 from datetime import datetime
+import json
 
 # Configuration and Logging Setup
 config = configparser.ConfigParser()
@@ -22,7 +23,7 @@ logger.add("debug.log", format="{time} {level} {message}", level="DEBUG")
 
 # Configuration Settings
 require_usage_input = config.getboolean('UsageInput', 'require_usage_input', fallback=True)
-usage_unit = config.get('UsageInput', 'usage_unit', fallback="minutes")
+usage_unit = config.get('UsageInput', 'usage_unit', fallback="units")
 material_id = config.get('UsageInput', 'material_id', fallback="")
 BASE_URL = config.get('API', 'base_url', fallback="https://www.makehaven.org/api/v0/material/")
 
@@ -62,8 +63,16 @@ def read_user_data_from_temp_json():
     except json.JSONDecodeError as e:
         print(f"Error reading JSON file: {e}")
         return None
+    except Exception as e:
+        print(f"Failed to load user data: {e}")
+        return None
 
-
+# Example usage
+user_data = read_user_data_from_temp_json()
+if user_data:
+    print("User data loaded successfully:", user_data)
+else:
+    print("Failed to load user data.")
 
 # Function to display QR code with additional UI elements
 def display_qr_code(qr_img):
@@ -92,46 +101,45 @@ def on_close(window):
     window.destroy()
     open_ending_screen()
 
+
 def open_ending_screen():
     ending_script = os.path.join(script_dir, "ending_window.py")
     subprocess.Popen([sys.executable, ending_script])
 
-def log_usage_to_csv(user_info_path, usage, usage_unit):
-    # Assuming user_info_path is the path to the JSON file containing user data
-    try:
-        with open(user_info_path, 'r') as f:
-            user_data = json.load(f)  # Load and parse the JSON data into a dictionary
-    except Exception as e:
-        print(f"Failed to load user data: {e}")
-        return  # Exit the function if user data could not be loaded
+# Example variables - replace these with actual data/logic to gather the values
+user_data = {}  # Populate this dictionary with actual user data
+material_name = "Example Material"
+station = user_data.get('station', 'Unknown')  # Example; replace with actual logic to determine station
+usage_amount = 1.5  # Example; replace with actual logic to determine usage amount
+unit = "Example Unit"
 
-    # Continue with your logging logic
-    csv_log_file = config.get('Logging', 'csv_log_file', fallback='usage_log.csv')
+
+# Assuming script_dir is defined somewhere in your script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Define the log_usage_to_csv function
+def log_usage_to_csv(first_name, last_name, permission, station, usage, usage_unit):
+    csv_log_file = 'SessionLog.csv'  # Example file name, adjust as needed
     csv_file_path = os.path.join(script_dir, csv_log_file)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # Extract user information from user_data
-    first_name = user_data.get("first_name", "Unknown")
-    last_name = user_data.get("last_name", "Unknown")
-    permission = user_data.get("permission", "Unknown")
-    station = user_data.get("station", "Unknown")
-
-    # Ensure the CSV file directory exists
+    # Ensure the directory for the CSV file exists
     os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
     
-    with open(csv_file_path, mode='a', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        # Check if file is empty to write headers
-        if os.path.getsize(csv_file_path) == 0:
-            writer.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration", "Rating", "Comments", "Usage", "Usage Unit"])
-        # Log the usage data
-        writer.writerow([timestamp, "Usage", first_name, last_name, permission, station, "N/A", "N/A", "N/A", usage, usage_unit])
+    # Write to CSV
+    try:
+        with open(csv_file_path, mode='a', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            # Write headers if the file is new
+            if os.path.getsize(csv_file_path) == 0:
+                writer.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Usage", "Usage Unit"])
+            # Write the usage data
+            writer.writerow([timestamp, "Usage", first_name, last_name, permission, station,"", usage, usage_unit])
+    except Exception as e:
+        print(f"Failed to log usage data: {e}")
 
-# Example usage
-user_info_path = 'path_to_user_info.json'  # Update this path as needed
-usage = 5  # Example usage amount
-usage_unit = 'hours'  # Example usage unit
-log_usage_to_csv(user_info_path, usage, usage_unit)
+
+
 
 # Main script execution
 if __name__ == "__main__":
@@ -147,7 +155,9 @@ if __name__ == "__main__":
             if usage_amount is not None:
                 material_name = material_data['materials'][0]['material']['label']  # Example: Adjust according to your data structure
                 unit = usage_unit  # From your config or however you define it# Assuming 'material_data' has the necessary information to construct the PayPal URL
-                log_usage_to_csv(material_name, unit, math.ceil(usage_amount)) 
+                usage = math.ceil(usage_amount)
+                log_usage_to_csv(user_data.get('first_name', 'Unknown'), user_data.get('last_name', 'Unknown'), user_data.get('permission', 'Unknown'), station, usage, unit)
+
                 # Ensure to round up the usage_amount to the nearest whole number
                 rounded_usage_amount = math.ceil(usage_amount)
 
