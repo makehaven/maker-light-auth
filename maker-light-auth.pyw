@@ -154,8 +154,37 @@ def request_access(identifier, is_email):
     return response
 
 
+def convert_to_hexadecimal(identifier, input_format):
+    add_debug_message(f"Converting identifier: {identifier} with input format: {input_format}")  # Debugging
+    if input_format == 'decimal':
+        try:
+            # Attempt conversion
+            converted = hex(int(identifier)).lstrip('0x').upper()
+            add_debug_message(f"Converted identifier: {converted}")  # Debugging
+            return converted
+        except ValueError as e:
+            # Log conversion error
+            add_debug_message(f"Error converting identifier: {e}")
+            return identifier.upper()  # Return the original identifier in upper case if conversion fails
+    else:
+        return identifier.upper()
+
+
 def handle_access(identifier):
+    # Determine if the input is an email
     is_email = "@" in identifier
+    
+    # If not an email, assume it's an RFID input and process accordingly
+    if not is_email:
+        # Get the RFID input format from configuration (default to hexadecimal)
+        rfid_input_format = config.get('Login', 'input_format', fallback='hexadecimal')
+        add_debug_message(f"RFID Input Format: {rfid_input_format}")  # Debugging
+        identifier_before_conversion = identifier
+        # Convert identifier to hexadecimal if necessary
+        identifier = convert_to_hexadecimal(identifier, rfid_input_format)
+        add_debug_message(f"Identifier before conversion: {identifier_before_conversion}, after conversion: {identifier}")  # Debugging
+    
+    # Proceed with access request
     response = request_access(identifier, is_email)
     if response and response.status_code == 200:
         data = response.json()
@@ -164,24 +193,24 @@ def handle_access(identifier):
             user_info = {
                 'first_name': data[0].get('first_name'),
                 'last_name': data[0].get('last_name'),
-                # Include tool and workstation information directly in user_info for simplicity
-                'permission': config.get('Login', 'permission_id'),  # Added the missing comma here
-                'station': config.get('Station', 'workstation_id'),  # Assuming you store workstation_id under [Station]
+                'permission': config.get('Login', 'permission_id'),
+                'station': config.get('Station', 'workstation_id'),
             }
             update_message(f"Access Granted. Welcome, {user_info['first_name']} {user_info['last_name']}.")
 
             # Write user data to the temporary JSON file before starting the session
             write_user_data_to_temp_json(user_info)
 
-            # Pass user_info and log file path to close_and_start_session function
+            # Schedule the session start
             root.after(1500, lambda: close_and_start_session(user_info))
 
         else:
             update_message("Access Denied. Please try again.")
-            root.after(3000, lambda: capture_input(True))  
+            root.after(3000, lambda: capture_input(True))
     else:
         update_message("Failed to contact server or access denied.")
         root.after(3000, lambda: capture_input(True))  # Retry on failure
+
 
 def close_and_start_session(user_info):
     # Log the session start

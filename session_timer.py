@@ -107,7 +107,7 @@ class SessionTimerWindow:
             csv.writer(csvfile).writerow(log_entry)
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        user_info_path = os.path.join(script_dir, "user_info_temp.json")
+        user_info_path = os.path.join(script_dir, "temp_user_data.json")
 
         # Save user_info to a temporary JSON file for the next scripts to use
         with open(user_info_path, 'w') as file:
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
     config.read(config_path)
 
-    permission_id = config.get('Login', 'permission_id', fallback='default_permission_id')
+    permission_id = config.get('Login', 'permission_id', fallback='deftemp_user_datalt_permission_id')
     workstation_id = config.get('Station', 'workstation_id', fallback='default_workstation_id')
 
     user_info = {

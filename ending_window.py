@@ -58,7 +58,7 @@ def restart_authentication():
     
     # Restart the authentication process by running maker-light-auth.py script
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    script_path = os.path.join(script_dir, "maker-light-auth.py")
+    script_path = os.path.join(script_dir, "maker-light-auth.pyw")
     
     # Use subprocess to run the script in a new process
     subprocess.Popen([sys.executable, script_path])
