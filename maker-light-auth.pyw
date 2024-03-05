@@ -8,6 +8,7 @@ import csv
 import configparser
 from loguru import logger
 import json
+from graylog_logging import get_graylog_logger, log_user_action
 
 # Load configuration
 config = configparser.ConfigParser()
@@ -176,46 +177,74 @@ def handle_access(identifier):
     if identifier.lower() == 'exit':  # Use lower() to make it case-insensitive
         root.destroy()  # Close the application
         return  # Exit the function early
-
-    # Determine if the input is an email
-    is_email = "@" in identifier
     
-    # If not an email, assume it's an RFID input and process accordingly
-    if not is_email:
-        # Get the RFID input format from configuration (default to hexadecimal)
-        rfid_input_format = config.get('Login', 'input_format', fallback='hexadecimal')
-        add_debug_message(f"RFID Input Format: {rfid_input_format}")  # Debugging
-        identifier_before_conversion = identifier
-        # Convert identifier to hexadecimal if necessary
-        identifier = convert_to_hexadecimal(identifier, rfid_input_format)
-        add_debug_message(f"Identifier before conversion: {identifier_before_conversion}, after conversion: {identifier}")  # Debugging
-    
-    # Proceed with access request
-    response = request_access(identifier, is_email)
+    # Initial access request based on the identifier
+    response = request_access(identifier, "@" in identifier)
     if response and response.status_code == 200:
         data = response.json()
-        if data and data[0]['access'] == "true":
-            # Extract user information
-            user_info = {
-                'first_name': data[0].get('first_name'),
-                'last_name': data[0].get('last_name'),
-                'permission': config.get('Login', 'permission_id'),
-                'station': config.get('Station', 'workstation_id'),
-            }
-            update_message(f"Access Granted. Welcome, {user_info['first_name']} {user_info['last_name']}.")
 
-            # Write user data to the temporary JSON file before starting the session
-            write_user_data_to_temp_json(user_info)
+        # If data is empty, it might be a former member, unrecognized account, or lack permission
+        if not data:
+            # Perform secondary API call to retrieve user information
+            user_info_response = request_user_info(identifier, "@" in identifier)
+            if user_info_response and user_info_response.status_code == 200:
+                user_data = user_info_response.json()
 
-            # Schedule the session start
-            root.after(1500, lambda: close_and_start_session(user_info))
-
+                # Check if the secondary response contains user data
+                if user_data:
+                    # Process user information (for former members, current members, or unauthorized access)
+                    process_user_data(user_data, "Denied because account not recognized as in the system.")
+                else:
+                    # The API call was successful, but no user data was returned - unrecognized account
+                    update_message("Denied because account not recognized as in the system.")
+            else:
+                # Handle failed API call
+                update_message("Failed to contact server or access denied.")
         else:
-            update_message("Access Denied. Please try again.")
-            root.after(3000, lambda: capture_input(True))
+            # Process successful access request based on the first API call
+            process_access_granted(data)
     else:
+        # Handle failed initial API call or access denied without specific information
         update_message("Failed to contact server or access denied.")
-        root.after(3000, lambda: capture_input(True))  # Retry on failure
+
+    # Always allow retry regardless of the outcome
+    root.after(3000, lambda: capture_input(True))
+
+def request_user_info(identifier, is_email):
+    """Function to make API call to retrieve user information by email or serial number."""
+    # Construct the API URL based on whether the identifier is an email or serial number
+    endpoint = "email" if is_email else "serial"
+    api_url = f"https://makehaven.org/api/v0/{endpoint}/{identifier}/user"
+
+    # Make the API request and return the response
+    return session.get(api_url)
+
+def process_user_data(user_data, default_message):
+    """Process user data from the API response to determine access denial reason."""
+    # Extract 'access' field from the first item in the response data
+    access_status = user_data[0].get('access', '').lower()
+    
+    if "denied" in access_status:
+        # User is a former member with inactive membership
+        update_message("Denied because membership is not active.")
+    elif "member" in access_status:
+        # User is a current member but may not have permission for this specific tool
+        update_message("Denied because does not have badge/permission for this tool.")
+    else:
+        # Default message for unexpected cases
+        update_message(default_message)
+
+def process_access_granted(data):
+    """Handle processing for users granted access."""
+    user_info = {
+        'first_name': data[0].get('first_name'),
+        'last_name': data[0].get('last_name'),
+        'permission': config.get('Login', 'permission_id'),
+        'station': config.get('Station', 'workstation_id'),
+    }
+    update_message(f"Access Granted. Welcome, {user_info['first_name']} {user_info['last_name']}.")
+    write_user_data_to_temp_json(user_info)
+    root.after(1500, lambda: close_and_start_session(user_info))
 
 
 def close_and_start_session(user_info):
@@ -256,27 +285,41 @@ def initialize_log_file(log_file_path):
             # Updated headers
             writer.writerow(["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration", "Rating", "Comments", "Usage", "Usage Unit"])
 
-def log_session(action, user_info, log_file_path):
+def log_session(action, user_info, log_file_path, extra_fields=None):
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     row = [
         timestamp, 
         action, 
         user_info.get('first_name', 'Unknown'), 
         user_info.get('last_name', 'User'), 
-        user_info.get('permission', 'N/A'),  # Permission typically holds permission_id
-        user_info.get('station', 'N/A'),  # Station typically holds workstation_id
-        ""  # Duration is empty for session start
+        user_info.get('permission', 'N/A'),
+        user_info.get('station', 'N/A'),
+        ""  # Placeholder for Duration as it's empty for session start
     ]
     
-    # Write to CSV log file
+    # CSV logging
     with open(log_file_path.replace('.txt', '.csv'), 'a', newline='') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(row)
     
-    # Also write to the plain text log file for backward compatibility
+    # Plain text logging
     with open(log_file_path, 'a') as logfile:
         logfile.write(f"{timestamp} - Session {action} for {user_info.get('first_name', 'Unknown')} {user_info.get('last_name', 'User')}.\n")
-
+    
+    # Graylog logging
+    graylog_logger = get_graylog_logger()  # Ensure get_graylog_logger() correctly handles config_path internally if needed
+    if graylog_logger:
+        # Merge extra_fields with the core log data
+        log_data = {
+            'timestamp': timestamp,
+            'action': action,
+            'first_name': user_info.get('first_name', 'Unknown'),
+            'last_name': user_info.get('last_name', 'User'),
+            'permission': user_info.get('permission', 'N/A'),
+            'station': user_info.get('station', 'N/A'),
+            **(extra_fields or {})  # Unpack extra_fields if provided, otherwise use empty dict
+        }
+        log_user_action(action, log_data, graylog_logger)
 
 # Message label for instructions
 message_label = tk.Label(root, text="Please scan your RFID tag or enter your email to start the session.", font=("Helvetica", 24))
