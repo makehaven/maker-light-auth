@@ -118,25 +118,27 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
     window.grid_rowconfigure(1, weight=1)
     window.grid_columnconfigure(0, weight=1)
 
+
     # Custom Message
     tk.Label(window, text=custom_message, font=("Helvetica", 18), pady=20).pack()
 
     if show_experience_scale:
-
         # Rating Scale
         rating_frame = tk.LabelFrame(window, text=experience_question, font=("Helvetica", 14))
         rating_frame.pack(pady=10)
 
         def rate_experience(score):
-             # Show message box for the rating
-            messagebox.showinfo("Rating", f"You rated {score}/5", parent=root)
-            
             # Open a new window to ask for comments
             comment_window = tk.Toplevel(window)
             comment_window.title("Additional Comments")
             comment_window.geometry("400x200")  # Adjust size as necessary
+            comment_window.attributes("-topmost", True)  # Ensure the window stays on top
 
-            tk.Label(comment_window, text="Any comments on your experience?", font=("Helvetica", 12)).pack(pady=(20, 10))
+            # Display the rating within the comment window
+            rating_display = f"Your rating: {score}/5"
+            tk.Label(comment_window, text=rating_display, font=("Helvetica", 12)).pack(pady=(10, 5))
+
+            tk.Label(comment_window, text="Any comments on your experience?", font=("Helvetica", 12)).pack(pady=(5, 10))
             comment_text = tk.Text(comment_window, height=4, width=40)
             comment_text.pack(pady=(0, 20))
 
@@ -144,7 +146,7 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
                 comments = comment_text.get("1.0", "end-1c")
                 log_event_with_comments("rating", score, comments, user_info)
                 comment_window.destroy()
-                
+
             submit_btn = tk.Button(comment_window, text="Submit", command=submit_comments)
             submit_btn.pack()
 
@@ -161,15 +163,11 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
             rating_buttons.append(btn)
         tk.Label(rating_frame, text=high_label, font=("Helvetica", 12)).pack(side=tk.LEFT, padx=5)
 
-
-
-
     consumables_frame_outer = tk.Frame(window, padx=20)  # Outer frame for padding
     consumables_frame_outer.pack(padx=100, pady=20)  # Pad outer frame to center and limit width
 
     consumables_frame = tk.LabelFrame(consumables_frame_outer, text="Materials for purchase", font=("Helvetica", 14))
-    consumables_frame.pack(fill="both", expand=True) 
-
+    consumables_frame.pack(fill="both", expand=True)
     # Assuming a two-column layout for materials
     column_count = 2  # Number of columns
     materials = fetch_consumables(tool_numerical_id)
@@ -219,6 +217,7 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
 def open_payment_link(material):
     detail_window = tk.Toplevel()
     detail_window.title(material['label'])
+    detail_window.attributes("-topmost", True)  # Ensure the window stays on top
 
     # Fetch and display the material image
     try:
