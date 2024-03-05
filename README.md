@@ -1,45 +1,48 @@
-RFID and Email Access Control Script
+# RFID and Email Access Control Script
 
-This Python-based script (`maker-light-auth.py`) enables user authentication via RFID or email, leveraging a Drupal backend for access permissions verification. It features a graphical user interface (GUI) for user interaction, displaying access status promptly.
+This Python-based script (`maker-light-auth.pyw`) facilitates user authentication using RFID or email, interfacing with a Drupal backend to verify access permissions. It provides a graphical user interface (GUI) for user interaction, displaying access statuses promptly.
+
+## Usage
+
+Configure the config file for the specific station and materials. Users can log in via serial number or email, which the script will verify against the configured website.
+
+**Tip**: Type "exit" at the user input screen to close the program.
 
 ## Prerequisites
 
 Ensure your system has:
 
-- **Python 3.x**: Specifically Python 3.6 or newer. Available for download at [python.org](https://www.python.org/downloads/).
-- **Requests library**: Utilized for HTTP requests handling.
-- **Additional libraries**: `httpx` and `qrcode[pil]` for extended functionalities.
+- **Python 3.x**: Version 3.6 or newer. Download from [python.org](https://www.python.org/downloads/).
+- **Python Libraries**: Install the `requests`, `httpx`, and `qrcode[pil]` libraries for HTTP requests handling and extended functionalities.
 
 ## Installation
 
 To set up the script environment, follow these steps:
 
-1. **Python Installation**: Download and install Python from [python.org](https://www.python.org/downloads/), making sure to add Python to your PATH.
+1. **Install Python**: Download and install Python from [python.org](https://www.python.org/downloads/). Ensure Python is added to your PATH.
 
-2. **Dependencies Installation**: Run the following command in your command prompt or terminal to install the necessary Python packages:
+2. **Install Dependencies**: Execute the following commands to install required libraries:
 
    ```bash
-   pip install requests httpx qrcode[pil]
+   pip install requests httpx configparser loguru qrcode[pil]
 
 
-##Workstation Setup for Shared User Account
+## Workstation Setup for Shared User Account
+To configure the script for automatic execution on a workstation with a shared user account:
 
-To configure the script for automatic execution on a workstation under a shared user account:
+Script Placement: Place maker-light-auth.pyw in a common directory, such as C:\Users\SharedUser\Scripts\.
 
-1. Script Placement: Copy maker-light-auth.py to a commonly accessible directory on the workstation, e.g., C:\Users\SharedUser\Scripts\.
+Configure Auto Start:
 
-2. Configure Autostart:
+Press Win + R, type shell:startup, and press Enter to open the Startup folder for the current user.
+For all users, use shell:common startup.
+Create a shortcut in the Startup folder pointing to the script's executable.
+Ensure Environment Readiness:
 
-Create a shortcut to maker-light-auth.py.
-Place it in the Startup folder of the shared user account, typically found at C:\Users\SharedUser\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup.
+Install Python and all dependencies for the shared user account.
+Administrative privileges might be necessary for system-wide installations.
+Check Permissions: Verify the shared user account has the necessary permissions to run the script and access network resources.
 
-3. Ensure Environment Readiness:
-
-Install Python and all required dependencies for the shared user account.
-Admin privileges may be needed for system-wide installations.
-
-4. Check Permissions: Confirm that the shared user account has appropriate permissions to run the script and access necessary network resources or APIs.
-
-5. Conduct a Test: Log into the workstation with the shared user account to test the script's autostart functionality. Address any issues by verifying the script's permissions, dependency installations, and startup configuration.
+Conduct a Test: Log in to the workstation with the shared user account to test the autostart functionality. Troubleshoot by checking script permissions, dependency installations, and startup configurations.
 
 

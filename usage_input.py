@@ -48,7 +48,7 @@ def create_qr_code(url, size=300):
 def read_user_data_from_temp_json():
     # Define the path to the temporary JSON file
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    temp_json_path = os.path.join(script_dir, 'temp_user_data.json')
+    temp_json_path = os.path.join(script_dir, 'user_info_temp.json')
 
     # Check if the file exists
     if not os.path.exists(temp_json_path):

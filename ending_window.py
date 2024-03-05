@@ -14,7 +14,8 @@ import csv
 import json
 window = None
 
-
+root = tk.Tk()
+root.withdraw()  # If you don't want the root window to be visible
 
 # Determine the directory of your script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -103,8 +104,11 @@ def log_event_with_comments(action, rating, comments, user_info=None):
 
 def show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info):
     global window
-    window = tk.Tk()
+    if window:  # If there's an existing window, safely destroy it
+        safe_destroy(window)
+    window = tk.Toplevel(root)  # Use Toplevel instead of Tk
     window.title("Session Ended")
+    window.attributes("-topmost", True)  # Ensure the window stays on top
 
     # Make window full screen and non-bypassable
     window.overrideredirect(True)
@@ -125,7 +129,7 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
 
         def rate_experience(score):
              # Show message box for the rating
-            messagebox.showinfo("Rating", f"You rated {score}/5")
+            messagebox.showinfo("Rating", f"You rated {score}/5", parent=root)
             
             # Open a new window to ask for comments
             comment_window = tk.Toplevel(window)

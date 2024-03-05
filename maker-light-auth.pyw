@@ -41,7 +41,8 @@ initialize_csv_log_file()
 
 # GUI setup
 root = tk.Tk()
-root.attributes('-fullscreen', True)
+root.attributes('-fullscreen', True)  # Keep the window in fullscreen mode
+root.attributes("-topmost", True)     # Make the window always stay on top
 
 # Debug box setup based on configuration
 debug_mode = config.getboolean('DEFAULT', 'debug_mode', fallback=False)
@@ -171,6 +172,11 @@ def convert_to_hexadecimal(identifier, input_format):
 
 
 def handle_access(identifier):
+    # Check if the input is the secret keyword 'exit' to close the application
+    if identifier.lower() == 'exit':  # Use lower() to make it case-insensitive
+        root.destroy()  # Close the application
+        return  # Exit the function early
+
     # Determine if the input is an email
     is_email = "@" in identifier
     
