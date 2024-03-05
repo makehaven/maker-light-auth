@@ -24,7 +24,7 @@ To set up the script environment, follow these steps:
 2. **Install Dependencies**: Execute the following commands to install required libraries:
 
    ```bash
-   pip install requests httpx configparser loguru qrcode[pil]
+   pip install requests httpx configparser loguru graypy qrcode[pil]
 
 
 ## Workstation Setup for Shared User Account

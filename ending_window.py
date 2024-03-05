@@ -35,7 +35,7 @@ experience_question = config.get('EndingPage', 'experience_question', fallback="
 high_label = config.get('EndingPage', 'high_label', fallback="Excellent")
 low_label = config.get('EndingPage', 'low_label', fallback="Poor")
 tool_numerical_id = config.get('Station', 'tool_numerical_id', fallback="0")
-custom_message = config.get('EndingPage', 'custom_message', fallback="Thank you for using the station.")
+end_message = config.get('EndingPage', 'end_message', fallback="Thank you for using the station.")
 LOG_FILE_PATH = os.path.join(script_dir, 'SessionLog.txt')  # Adjust the filename as necessary
 CSV_LOG_FILE_PATH = config.get('Logging', 'csv_log_file_path', fallback=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SessionLog.csv"))
 
@@ -102,7 +102,7 @@ def log_event_with_comments(action, rating, comments, user_info=None):
         log_file.write(log_entry_text)
 
 
-def show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info):
+def show_ending_window(end_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info):
     global window
     if window:  # If there's an existing window, safely destroy it
         safe_destroy(window)
@@ -119,8 +119,8 @@ def show_ending_window(custom_message, show_experience_scale, tool_numerical_id,
     window.grid_columnconfigure(0, weight=1)
 
 
-    # Custom Message
-    tk.Label(window, text=custom_message, font=("Helvetica", 18), pady=20).pack()
+    # Custom end Message
+    tk.Label(window, text=end_message, font=("Helvetica", 18), pady=20).pack()
 
     if show_experience_scale:
         # Rating Scale
@@ -307,4 +307,4 @@ if __name__ == "__main__":
     else:
         user_info = {'first_name': 'Unknown', 'last_name': 'Unknown'}  # Default values
 
-    show_ending_window(custom_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info)
+    show_ending_window(end_message, show_experience_scale, tool_numerical_id, experience_question, high_label, low_label, user_info)

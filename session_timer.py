@@ -15,6 +15,10 @@ config.read(config_path)
 
 log_file_path = config.get('Logging', 'log_file_path', fallback=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SessionLog.txt"))
 
+# Load EndingPage configuration
+show_ending_window = config.getboolean('EndingPage', 'show_ending_window', fallback=True)
+
+
 class SessionTimerWindow:
     def __init__(self, user_info=None, log_file_path=log_file_path):
         self.log_file_path = log_file_path  # Store the log file path
@@ -105,21 +109,23 @@ class SessionTimerWindow:
         log_entry = [timestamp, "end", self.user_info['first_name'], self.user_info['last_name'], self.user_info.get('permission', 'N/A'), self.user_info.get('station', 'N/A'), duration_str]
         with open(self.log_file_path.replace('.txt', '.csv'), 'a', newline='') as csvfile:
             csv.writer(csvfile).writerow(log_entry)
-
+            
         script_dir = os.path.dirname(os.path.abspath(__file__))
         user_info_path = os.path.join(script_dir, "temp_user_data.json")
 
-        # Save user_info to a temporary JSON file for the next scripts to use
         with open(user_info_path, 'w') as file:
             json.dump(self.user_info, file)
 
-        require_usage_input = config.getboolean('UsageInput', 'require_usage_input', fallback=False)
-
-        # Determine the next script to call based on require_usage_input
-        next_script_path = os.path.join(script_dir, "usage_input.py") if require_usage_input else os.path.join(script_dir, "ending_window.py")
-        
-        # Call the determined script, passing the path to the user_info JSON
-        subprocess.Popen([sys.executable, next_script_path, user_info_path])
+        if not show_ending_window:
+            # If show_ending_window is False, launch maker-light-auth.pyw
+            auth_script_path = os.path.join(script_dir, "maker-light-auth.pyw")
+            subprocess.Popen([sys.executable, auth_script_path])
+        else:
+            require_usage_input = config.getboolean('UsageInput', 'require_usage_input', fallback=False)
+            # Your existing logic for determining the next script based on require_usage_input...
+            next_script_path = os.path.join(script_dir, "usage_input.py") if require_usage_input else os.path.join(script_dir, "ending_window.py")
+            if next_script_path is not None:
+                subprocess.Popen([sys.executable, next_script_path, user_info_path])
         
         self.root.destroy()  # Close the timer window
 
