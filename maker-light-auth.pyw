@@ -60,29 +60,38 @@ def add_debug_message(message):
 # Session for persistent login state
 session = requests.Session()
 
-# Function to fetch and display upcoming reservations
+# Function to clear existing reservations display before update
+def clear_frame(frame):
+    for widget in frame.winfo_children():
+        widget.destroy()
+
+# Modified function to include automatic refresh
 def display_upcoming_reservations(master_window, equipment_id):
-    # Fetch reservations data
-    reservations_data = fetch_upcoming_reservations(equipment_id)
-    # Create a frame for displaying reservations
     reservations_frame = ttk.LabelFrame(master_window, text="Upcoming Reservations", padding="10")
     reservations_frame.pack(fill="both", expand=True, padx=20, pady=20)
-    # Adding an invisible label with a specific width and height to enforce minimum size
-    invisible_label = tk.Label(reservations_frame, text="", width=100, height=5)
-    invisible_label.pack()
 
+    def update_reservations_display():
+        # Clear existing content in the frame
+        clear_frame(reservations_frame)
 
-    if reservations_data:
-        for reservation in reservations_data:
-            reservation_info = reservation["reservation"]  # Adjusted according to your JSON structure
-            label_text = f"{reservation_info['asset']} - {reservation_info['range']} - {reservation_info['name']}"
-            reservation_label = tk.Label(reservations_frame, text=label_text, wraplength=1000, anchor="w", justify="center", font=("Helvetica", 14))
-            reservation_label.pack(fill='x', pady=2)
-            reservation_label.config(font=("Helvetica", 14))
-    else:
-        no_reservations_label = tk.Label(reservations_frame, text="No upcoming reservations.", anchor="w")
-        no_reservations_label.pack(fill='x')
-        no_reservations_label.config(font=("Helvetica", 14))
+        # Fetch reservations data
+        reservations_data = fetch_upcoming_reservations(equipment_id)
+
+        if reservations_data:
+            for reservation in reservations_data:
+                reservation_info = reservation  # Adjusted according to your JSON structure
+                label_text = f"{reservation_info['asset']} - {reservation_info['range']} - {reservation_info['name']}"
+                reservation_label = tk.Label(reservations_frame, text=label_text, wraplength=1000, anchor="w", justify="left", font=("Helvetica", 14))
+                reservation_label.pack(fill='x', pady=2)
+        else:
+            no_reservations_label = tk.Label(reservations_frame, text="No upcoming reservations.", anchor="w", font=("Helvetica", 14))
+            no_reservations_label.pack(fill='x')
+
+        # Schedule the next update in 60000 milliseconds (1 minute)
+        master_window.after(60000, update_reservations_display)
+
+    # Initial call to start the loop
+    update_reservations_display()
 
 def fetch_upcoming_reservations(equipment_id):
     api_url = f"https://makehaven.org/api/v0/reservation/upcoming/equipment/{equipment_id}"
@@ -96,6 +105,39 @@ def fetch_upcoming_reservations(equipment_id):
     except requests.RequestException as e:
         print(f"Error fetching reservation data: {e}")
     return []
+
+
+def read_last_user_info():
+    """Reads and returns the last user's information from the temporary JSON file."""
+    temp_json_path = 'user_info_temp.json'  # Update the path as necessary
+    
+    if os.path.exists(temp_json_path):
+        try:
+            with open(temp_json_path, 'r') as json_file:
+                user_info = json.load(json_file)
+                return user_info
+        except json.JSONDecodeError as e:
+            print(f"Error reading or parsing the temporary user info file: {e}")
+    return None
+
+def display_last_user_info(master_window):
+    """Displays the last user's information in the application's UI."""
+    last_user_info = read_last_user_info()
+    
+    if last_user_info:
+        # Construct the display string using the info from last_user_info
+        last_user_text = "Last User: {} {}".format(
+            last_user_info.get('first_name', 'Unknown'), 
+            last_user_info.get('last_name', 'Unknown'))
+    else:
+        last_user_text = "Last User: None"
+
+    
+    # Create and pack a label in master_window to display the last user's information
+    last_user_label = tk.Label(master_window, text=last_user_text, font=("Helvetica", 14))
+    last_user_label.pack(pady=10)
+
+
 
 def update_message(message):
     message_label.config(text=message)
@@ -347,6 +389,8 @@ def capture_input(retry=False):
 
 # Display reservations in the main window
 display_upcoming_reservations(root, tool_numerical_id)
+
+display_last_user_info(root)  # Display the last user's in 
 
 # Ensure the input dialog is displayed after a short delay to allow the main window to initialize
 root.after(100, capture_input)
