@@ -171,14 +171,21 @@ def show_ending_window(end_message, show_experience_scale, tool_numerical_id, ex
     # Assuming a two-column layout for materials
     column_count = 2  # Number of columns
     materials = fetch_consumables(tool_numerical_id)
-    for index, material_info in enumerate(materials):
-        material = material_info['material']
+    for index, material in enumerate(materials):
         label = f"{material['label']} - {material['unit']} - ${material['cost']}"
         row = index // column_count
         column = index % column_count
-        # Create button with larger font size
-        button = ttk.Button(consumables_frame, text=label, style="Material.TButton", command=lambda m=material: open_payment_link(m))
+
+        # Create a button for each material
+        button = ttk.Button(
+            consumables_frame,
+            text=label,
+            style="Material.TButton",
+            command=lambda m=material: open_payment_link(m),
+        )
         button.grid(row=row, column=column, padx=5, pady=5, sticky="ew")
+        print(f"Created button for: {label}")  # Debugging output
+
 
     # Apply a style to make the text bigger
     style = ttk.Style()
@@ -215,18 +222,21 @@ def show_ending_window(end_message, show_experience_scale, tool_numerical_id, ex
 
 
 def open_payment_link(material):
+    print(f"Button clicked for material: {material}")  # Debugging
     detail_window = tk.Toplevel()
     detail_window.title(material['label'])
-    detail_window.attributes("-topmost", True)  # Ensure the window stays on top
+    detail_window.attributes("-topmost", True)
 
-    # Fetch and display the material image
+    # Parse and display the material image if available
     try:
-        image_url = material['image']['src']
+        # Extract `src` from `material['image']` (example contains an HTML snippet)
+        image_src = material['image'].split('src="')[1].split('"')[0]
+        image_url = f"https://www.makehaven.org{image_src}"  # Append domain if relative
         image_response = requests.get(image_url, stream=True)
         image_response.raw.decode_content = True
         material_image = Image.open(image_response.raw)
 
-        # Resize the image while maintaining the aspect ratio
+        # Resize the image
         base_height = 100
         img_ratio = base_height / float(material_image.size[1])
         new_width = int((float(material_image.size[0]) * float(img_ratio)))
@@ -234,12 +244,12 @@ def open_payment_link(material):
 
         photo_image = ImageTk.PhotoImage(material_image)
         img_label = tk.Label(detail_window, image=photo_image)
-        img_label.image = photo_image  # keep a reference to prevent garbage-collection
+        img_label.image = photo_image
         img_label.pack(pady=10)
     except Exception as e:
         print(f"Failed to load image: {e}")
 
-    # Generate QR Code
+    # Generate and display QR Code
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -250,24 +260,18 @@ def open_payment_link(material):
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color='black', back_color='white').convert('RGB')
 
-    # Optionally resize QR code (if needed, otherwise comment out the resizing part)
     qr_img_resized = qr_img.resize((100, 100), Image.LANCZOS)
     qr_photo = ImageTk.PhotoImage(image=qr_img_resized)
-
-    # Display QR Code
     qr_label = tk.Label(detail_window, image=qr_photo)
-    qr_label.image = qr_photo  # keep a reference!
+    qr_label.image = qr_photo
     qr_label.pack(pady=10)
 
     # Display Material Info
     material_info = f"{material['label']}\nUnit: {material['unit']}\nPrice: ${material['cost']}"
     tk.Label(detail_window, text=material_info, font=("Helvetica", 12)).pack()
 
-    # "Buy Here" Button for backup
-    #buy_button = ttk.Button(detail_window, text="Buy Here", command=lambda: webbrowser.open(material['purchase']))
-    #buy_button.pack(pady=10)
-
     detail_window.mainloop()
+
 
 def log_event(action, rating, user_info=None):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -291,11 +295,16 @@ def fetch_consumables(tool_numerical_id):
     url = f"https://www.makehaven.org/api/v0/materials/equipment/{tool_numerical_id}"
     response = requests.get(url)
     if response.status_code == 200:
-        data = response.json()
-        return data['materials']
+        try:
+            data = response.json()
+            return data  # Return the JSON response directly
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON: {e}")
+            return []
     else:
         print(f"Error fetching materials: {response.status_code}")
         return []
+
 
 
 if __name__ == "__main__":
