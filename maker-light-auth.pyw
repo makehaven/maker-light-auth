@@ -238,14 +238,14 @@ def request_access(identifier, is_email):
                 add_debug_message("Login failed. Please check credentials.")
             return None
 
-    # Determine the endpoint based on whether it's an email or serial request
+    # Determine the endpoint based on the type of request (email or serial)
     endpoint = "email" if is_email else "serial"
 
-    # Append a unique `?nocache` parameter to bypass caching
+    # Construct the API URL with additional parameters
     api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, permission_id=permission_id)
-    api_url += f"?nocache={uuid.uuid4()}"
+    api_url += f"?source={workstation_id}&method=MakerAuth"
 
-    # Add headers that mimic the successful `curl` request
+    # Add headers
     headers = {
         "User-Agent": "curl/7.68.0",  # Mimic curl's User-Agent
         "Accept": "*/*",              # Match curl's Accept header
