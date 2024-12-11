@@ -8,6 +8,7 @@ import csv
 import configparser
 from loguru import logger
 import json
+import uuid
 from graylog_logging import get_graylog_logger, log_user_action
 
 # Load configuration
@@ -120,9 +121,14 @@ def display_upcoming_reservations(master_window, equipment_id):
     update_reservations_display()
 
 def fetch_upcoming_reservations(equipment_id):
-    api_url = f"https://makehaven.org/api/v0/reservation/upcoming/equipment/{equipment_id}"
+    api_url = f"https://makehaven.org/api/v0/reservation/upcoming/equipment/{equipment_id}?nocache={uuid.uuid4()}"
+    headers = {
+        "User-Agent": "curl/7.68.0",  # Mimic curl's behavior
+        "Accept": "*/*",
+        "Cache-Control": "no-cache",  # Ensure fresh data
+    }
     try:
-        response = requests.get(api_url)
+        response = requests.get(api_url, headers=headers)
         
         # Debugging: Print the raw response
         print("Raw response text:", response.text)
@@ -223,30 +229,43 @@ def login_to_drupal():
         print(f"Login failed: {e}")
     return False
 
+
 def request_access(identifier, is_email):
-    global session  # Ensure session is recognized as global if not already defined
+    global session
     if session is None:
         if not login_to_drupal():
             if debug_mode:
                 add_debug_message("Login failed. Please check credentials.")
             return None
-    endpoint = "email" if is_email else "serial"
-    api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, permission_id=permission_id)
 
-    response = session.get(api_url)
-    
-    # Debug messages should be logged before any return statement to ensure they execute
+    # Determine the endpoint based on whether it's an email or serial request
+    endpoint = "email" if is_email else "serial"
+
+    # Append a unique `?nocache` parameter to bypass caching
+    api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, permission_id=permission_id)
+    api_url += f"?nocache={uuid.uuid4()}"
+
+    # Add headers that mimic the successful `curl` request
+    headers = {
+        "User-Agent": "curl/7.68.0",  # Mimic curl's User-Agent
+        "Accept": "*/*",              # Match curl's Accept header
+        "Cache-Control": "no-cache",  # Ensure fresh data
+    }
+
+    # Make the GET request
+    response = session.get(api_url, headers=headers)
+
+    # Debugging outputs
     if debug_mode:
         add_debug_message(f"Request URL: {api_url}")
-        add_debug_message(f"Access request for {identifier}: {response.status_code}")
-        if response.status_code == 200:
-            try:
-                response_data = response.json()
-                add_debug_message(f"Response JSON: {response_data}")
-            except ValueError:
-                add_debug_message("Response body could not be converted to JSON.")
-        else:
-            add_debug_message(f"Response body: {response.text}")
+        add_debug_message(f"Response status code: {response.status_code}")
+        add_debug_message(f"Response headers: {response.headers}")
+        add_debug_message(f"Response text: {response.text}")
+        try:
+            response_data = response.json()
+            add_debug_message(f"Response JSON: {response_data}")
+        except ValueError:
+            add_debug_message("Response body could not be converted to JSON.")
 
     return response
 
