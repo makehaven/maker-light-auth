@@ -27,6 +27,26 @@ To set up the script environment, follow these steps:
    pip install requests httpx configparser loguru graypy qrcode[pil]
 
 
+Linux Instructions (Ubuntu)
+
+If you're using Linux (e.g., Ubuntu), follow these additional steps:
+
+Ensure Python and Pip are Installed:
+
+sudo apt update
+sudo apt install python3 python3-pip
+
+Set Up a Virtual Environment (Optional but Recommended):
+
+python3 -m venv venv
+source venv/bin/activate
+
+Install Dependencies:
+
+pip install requests httpx configparser loguru graypy qrcode[pil]
+
+Run the Script:                         python3 maker-light-auth.pyw                                                                                   
+
 ## Workstation Setup for Shared User Account
 To configure the script for automatic execution on a workstation with a shared user account:
 

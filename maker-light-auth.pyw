@@ -64,9 +64,10 @@ session = requests.Session()
 def clear_frame(frame):
     for widget in frame.winfo_children():
         widget.destroy()
+    print("Cleared frame.")  # Debugging
 
-# Modified function to include automatic refresh
 def display_upcoming_reservations(master_window, equipment_id):
+    # Create a frame for displaying reservations
     reservations_frame = ttk.LabelFrame(master_window, text="Upcoming Reservations", padding="10")
     reservations_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
@@ -77,34 +78,86 @@ def display_upcoming_reservations(master_window, equipment_id):
         # Fetch reservations data
         reservations_data = fetch_upcoming_reservations(equipment_id)
 
+        print(f"Number of reservations to display: {len(reservations_data)}")  # Debugging
+
         if reservations_data:
-            for reservation in reservations_data:
-                reservation_info = reservation  # Adjusted according to your JSON structure
-                label_text = f"{reservation_info['asset']} - {reservation_info['range']} - {reservation_info['name']}"
-                reservation_label = tk.Label(reservations_frame, text=label_text, wraplength=1000, anchor="w", justify="left", font=("Helvetica", 14))
-                reservation_label.pack(fill='x', pady=2)
+            for index, reservation in enumerate(reservations_data):
+                print(f"Processing reservation {index}: {reservation}")  # Debugging
+                
+                # Build label text with default values if keys are missing
+                label_text = (
+                    f"Asset: {reservation.get('asset', 'Unknown Asset')}\n"
+                    f"Time: {reservation.get('range', 'Unknown Time')}\n"
+                    f"User: {reservation.get('name', 'Unknown User')}\n"
+                    f"Note: {reservation.get('note', 'No Notes')}\n"
+                    f"Purpose: {reservation.get('purpose', 'No Purpose Specified')}\n"
+                    f"Status: {reservation.get('status', 'Unknown Status')}\n"
+                    "-----------------------"
+                )
+
+                # Add the label to the frame
+                tk.Label(
+                    reservations_frame,
+                    text=label_text,
+                    wraplength=1000,
+                    anchor="w",
+                    justify="left",
+                    font=("Helvetica", 14)
+                ).pack(fill='x', pady=2)
         else:
-            no_reservations_label = tk.Label(reservations_frame, text="No upcoming reservations.", anchor="w", font=("Helvetica", 14))
-            no_reservations_label.pack(fill='x')
+            # Show a message if no reservations are available
+            tk.Label(
+                reservations_frame,
+                text="No upcoming reservations.",
+                anchor="w",
+                font=("Helvetica", 14)
+            ).pack(fill='x')
 
         # Schedule the next update in 60000 milliseconds (1 minute)
         master_window.after(60000, update_reservations_display)
 
-    # Initial call to start the loop
+    # Start the first update
     update_reservations_display()
 
 def fetch_upcoming_reservations(equipment_id):
     api_url = f"https://makehaven.org/api/v0/reservation/upcoming/equipment/{equipment_id}"
     try:
         response = requests.get(api_url)
+        
+        # Debugging: Print the raw response
+        print("Raw response text:", response.text)
+        
         if response.status_code == 200:
-            data = response.json()
-            return data["reservations"]  # Adjust according to actual JSON structure
+            # Attempt to parse the JSON
+            try:
+                data = response.json()
+                print("Parsed JSON data:", data)
+                print("Type of data:", type(data))
+                
+                # If the response is a dictionary, extract reservations if present
+                if isinstance(data, dict):
+                    reservations = data.get("reservations", [])
+                    print("Extracted reservations:", reservations)
+                    return reservations
+                
+                # If the response is already a list, return it directly
+                if isinstance(data, list):
+                    print("Data is a list, returning as is.")
+                    return data
+                
+                # Handle unexpected data formats
+                print("Unexpected data format:", data)
+                return []
+            
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON: {e}")
+                return []
         else:
             print(f"Error fetching reservation data: {response.status_code}")
     except requests.RequestException as e:
         print(f"Error fetching reservation data: {e}")
     return []
+
 
 
 def read_last_user_info():
