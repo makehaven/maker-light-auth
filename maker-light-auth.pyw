@@ -219,6 +219,12 @@ def login_to_drupal():
         "cache-control": "private, max-age=0, no-cache",
     }
 
+    # Device key the website expects on /api/v0 lookups (MakeHaven SEC-001).
+    # Set on the session so every call carries it.
+    api_key = config.get('Login', 'api_key', fallback='').strip()
+    if api_key:
+        headers["X-API-Key"] = api_key
+
     session.headers.update(headers)
 
     try:
@@ -317,6 +323,10 @@ def handle_access(identifier):
         else:
             # Process successful access request based on the first API call
             process_access_granted(data)
+    elif response is not None and response.status_code == 401:
+        # The website refused this station, not the member: its api_key in
+        # config.ini is missing or out of date. Stays locked; tell staff why.
+        update_message("This station's website key is missing or out of date. Please tell staff.")
     else:
         # Handle failed initial API call or access denied without specific information
         update_message("Failed to contact server or access denied.")
