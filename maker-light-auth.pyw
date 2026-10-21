@@ -9,6 +9,7 @@ import configparser
 from loguru import logger
 import json
 import uuid
+from urllib.parse import quote
 from graylog_logging import get_graylog_logger, log_user_action
 
 # Load configuration
@@ -17,9 +18,6 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.i
 config.read(config_path)
 
 # Accessing Config Values
-login_url = config.get('Login', 'login_url')
-username = config.get('Login', 'username')
-password = config.get('Login', 'password')
 debug_mode = config.getboolean('DEFAULT', 'debug_mode', fallback=False)
 permission_id = config.get('Login', 'permission_id')
 workstation_id = config.get('Station', 'workstation_id')
@@ -58,8 +56,16 @@ def add_debug_message(message):
         debug_box.insert(tk.END, message + "\n")
         debug_box.see(tk.END)
 
-# Session for persistent login state
+# Seconds to wait on the website before giving up, so a network outage
+# can't freeze the station.
+REQUEST_TIMEOUT = 10
+
+# Shared session for every website call. It carries the device key the
+# website expects on /api/v0 lookups (MakeHaven SEC-001).
 session = requests.Session()
+api_key = config.get('Login', 'api_key', fallback='').strip()
+if api_key:
+    session.headers["X-API-Key"] = api_key
 
 # Function to clear existing reservations display before update
 def clear_frame(frame):
@@ -121,14 +127,14 @@ def display_upcoming_reservations(master_window, equipment_id):
     update_reservations_display()
 
 def fetch_upcoming_reservations(equipment_id):
-    api_url = f"https://makehaven.org/api/v0/reservation/upcoming/equipment/{equipment_id}?nocache={uuid.uuid4()}"
+    api_url = f"https://www.makehaven.org/api/v0/reservation/upcoming/equipment/{equipment_id}?nocache={uuid.uuid4()}"
     headers = {
         "User-Agent": "curl/7.68.0",  # Mimic curl's behavior
         "Accept": "*/*",
         "Cache-Control": "no-cache",  # Ensure fresh data
     }
     try:
-        response = requests.get(api_url, headers=headers)
+        response = session.get(api_url, headers=headers, timeout=REQUEST_TIMEOUT)
         
         # Debugging: Print the raw response
         print("Raw response text:", response.text)
@@ -204,51 +210,12 @@ def update_message(message):
     if debug_mode:
         add_debug_message(f"Updating message: {message}")
 
-# Global session for persistent login state
-session = None
-
-def login_to_drupal():
-    global session
-    session = requests.Session()
-    login_url = config.get('Login', 'login_url')
-    username = config.get('Login', 'username')
-    password = config.get('Login', 'password')
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.155 Safari/537.36",
-        "cache-control": "private, max-age=0, no-cache",
-    }
-
-    # Device key the website expects on /api/v0 lookups (MakeHaven SEC-001).
-    # Set on the session so every call carries it.
-    api_key = config.get('Login', 'api_key', fallback='').strip()
-    if api_key:
-        headers["X-API-Key"] = api_key
-
-    session.headers.update(headers)
-
-    try:
-        response = session.post(login_url, data={"name": username, "pass": password, "form_id": "user_login", "op": "Log in",})
-        if response.status_code == 200:
-            return True
-    except Exception as e:
-        print(f"Login failed: {e}")
-    return False
-
-
 def request_access(identifier, is_email):
-    global session
-    if session is None:
-        if not login_to_drupal():
-            if debug_mode:
-                add_debug_message("Login failed. Please check credentials.")
-            return None
-
     # Determine the endpoint based on the type of request (email or serial)
     endpoint = "email" if is_email else "serial"
 
     # Construct the API URL with additional parameters
-    api_url = api_url_template.format(endpoint=endpoint, identifier=identifier, permission_id=permission_id)
+    api_url = api_url_template.format(endpoint=endpoint, identifier=quote(identifier, safe=''), permission_id=permission_id)
     api_url += f"?source={workstation_id}&method=MakerAuth"
 
     # Add headers
@@ -258,22 +225,32 @@ def request_access(identifier, is_email):
         "Cache-Control": "no-cache",  # Ensure fresh data
     }
 
-    # Make the GET request
-    response = session.get(api_url, headers=headers)
+    try:
+        response = session.get(api_url, headers=headers, timeout=REQUEST_TIMEOUT)
+    except requests.RequestException as e:
+        add_debug_message(f"Request failed: {e}")
+        return None
 
     # Debugging outputs
     if debug_mode:
         add_debug_message(f"Request URL: {api_url}")
         add_debug_message(f"Response status code: {response.status_code}")
-        add_debug_message(f"Response headers: {response.headers}")
         add_debug_message(f"Response text: {response.text}")
-        try:
-            response_data = response.json()
-            add_debug_message(f"Response JSON: {response_data}")
-        except ValueError:
-            add_debug_message("Response body could not be converted to JSON.")
 
     return response
+
+
+def denial_reason(response):
+    """The website explains a 403/404 in {"error": "..."}; fall back to a generic message."""
+    try:
+        reason = response.json().get('error')
+    except (ValueError, AttributeError):
+        reason = None
+    if response.status_code == 404:
+        return "Denied: account not recognized. Check your email or card."
+    if reason:
+        return f"Denied: {reason}"
+    return "Access denied."
 
 
 def convert_to_hexadecimal(identifier, input_format):
@@ -293,70 +270,38 @@ def convert_to_hexadecimal(identifier, input_format):
 
 
 def handle_access(identifier):
+    identifier = identifier.strip()
+
     # Check if the input is the secret keyword 'exit' to close the application
     if identifier.lower() == 'exit':  # Use lower() to make it case-insensitive
         root.destroy()  # Close the application
         return  # Exit the function early
-    
-    # Initial access request based on the identifier
-    response = request_access(identifier, "@" in identifier)
-    if response and response.status_code == 200:
-        data = response.json()
 
-        # If data is empty, it might be a former member, unrecognized account, or lack permission
-        if not data:
-            # Perform secondary API call to retrieve user information
-            user_info_response = request_user_info(identifier, "@" in identifier)
-            if user_info_response and user_info_response.status_code == 200:
-                user_data = user_info_response.json()
-
-                # Check if the secondary response contains user data
-                if user_data:
-                    # Process user information (for former members, current members, or unauthorized access)
-                    process_user_data(user_data, "Denied because account not recognized as in the system.")
-                else:
-                    # The API call was successful, but no user data was returned - unrecognized account
-                    update_message("Denied because account not recognized as in the system.")
-            else:
-                # Handle failed API call
-                update_message("Failed to contact server or access denied.")
+    try:
+        response = request_access(identifier, "@" in identifier)
+        if response is None:
+            update_message("Can't reach the website. Please try again in a moment.")
+        elif response.status_code == 200:
+            data = response.json()
+            if data:
+                process_access_granted(data)
+                return
+            update_message("Access denied.")
+        elif response.status_code == 401:
+            # The website refused this station, not the member: its api_key in
+            # config.ini is missing or out of date. Stays locked; tell staff why.
+            update_message("This station's website key is missing or out of date. Please tell staff.")
+        elif response.status_code in (403, 404):
+            update_message(denial_reason(response))
         else:
-            # Process successful access request based on the first API call
-            process_access_granted(data)
-    elif response is not None and response.status_code == 401:
-        # The website refused this station, not the member: its api_key in
-        # config.ini is missing or out of date. Stays locked; tell staff why.
-        update_message("This station's website key is missing or out of date. Please tell staff.")
-    else:
-        # Handle failed initial API call or access denied without specific information
-        update_message("Failed to contact server or access denied.")
+            update_message("Failed to contact server or access denied.")
+    except Exception as e:
+        # Never leave the station without a login prompt.
+        add_debug_message(f"Error handling access: {e}")
+        update_message("Something went wrong. Please try again.")
 
     # Always allow retry regardless of the outcome
     root.after(3000, lambda: capture_input(True))
-
-def request_user_info(identifier, is_email):
-    """Function to make API call to retrieve user information by email or serial number."""
-    # Construct the API URL based on whether the identifier is an email or serial number
-    endpoint = "email" if is_email else "serial"
-    api_url = f"https://makehaven.org/api/v0/{endpoint}/{identifier}/user"
-
-    # Make the API request and return the response
-    return session.get(api_url)
-
-def process_user_data(user_data, default_message):
-    """Process user data from the API response to determine access denial reason."""
-    # Extract 'access' field from the first item in the response data
-    access_status = user_data[0].get('access', '').lower()
-    
-    if "denied" in access_status:
-        # User is a former member with inactive membership
-        update_message("Denied because membership is not active.")
-    elif "member" in access_status:
-        # User is a current member but may not have permission for this specific tool
-        update_message("Denied because does not have badge/permission for this tool.")
-    else:
-        # Default message for unexpected cases
-        update_message(default_message)
 
 def process_access_granted(data):
     """Handle processing for users granted access."""

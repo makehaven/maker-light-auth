@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+debug.log
+SessionLog.csv
+temp_user_data.json

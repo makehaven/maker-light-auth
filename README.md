@@ -8,12 +8,16 @@ Configure the config file for the specific station and materials. Users can log 
 
 **Tip**: Type "exit" at the user input screen to close the program.
 
+### Station key
+
+The website requires a device key on access lookups. Set `api_key` under `[Login]` in `config.ini` to the key staff issue for MakerAuth stations (see the website's `docs/ops/ACCESS_API_KEYS.md`). If it is missing or wrong, the station stays locked and says "This station's website key is missing or out of date."
+
 ## Prerequisites
 
 Ensure your system has:
 
 - **Python 3.x**: Version 3.6 or newer. Download from [python.org](https://www.python.org/downloads/).
-- **Python Libraries**: Install the `requests`, `httpx`, and `qrcode[pil]` libraries for HTTP requests handling and extended functionalities.
+- **Python Libraries**: Install the `requests`, `loguru`, `graypy`, and `qrcode[pil]` libraries for HTTP requests handling and extended functionalities.
 
 ## Installation
 
@@ -24,7 +28,7 @@ To set up the script environment, follow these steps:
 2. **Install Dependencies**: Execute the following commands to install required libraries:
 
    ```bash
-   pip install requests httpx configparser loguru graypy qrcode[pil]
+   pip install requests loguru graypy qrcode[pil]
 
 
 Linux Instructions (Ubuntu)
@@ -43,7 +47,7 @@ source venv/bin/activate
 
 Install Dependencies:
 
-pip install requests httpx configparser loguru graypy qrcode[pil]
+pip install requests loguru graypy qrcode[pil]
 
 Run the Script:                         python3 maker-light-auth.pyw                                                                                   
 
