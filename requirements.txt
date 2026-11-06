@@ -1,3 +1,4 @@
 requests
 qrcode[pil]
 pillow
+psutil

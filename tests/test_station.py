@@ -309,6 +309,51 @@ class DisplayTests(StationTestCase):
         _title, when, _who = station.reservation_parts({"start": "2026-11-06T00:05:00", "end": "2026-11-06T12:00:00"})
         self.assertIn("12:05 AM to 12:00 PM", when)
 
+    def warning_config(self, now, **fields):
+        return {"reservations": [dict({
+            "equipment": "Laser 2",
+            "member": "Jane D.",
+            "start": (now + timedelta(minutes=20)).isoformat(),
+            "end": (now + timedelta(minutes=80)).isoformat(),
+        }, **fields)]}
+
+    def test_warns_about_a_reservation_starting_soon(self):
+        now = datetime(2026, 11, 6, 14, 0, tzinfo=timezone.utc)
+        config = self.warning_config(now)
+        self.assertEqual("Laser 2 is reserved at 2:20 PM by Jane D.", station.reservation_warning(config, 30, now=now))
+        self.assertIsNone(station.reservation_warning(config, 10, now=now), "Too far ahead to mention.")
+
+    def test_warns_about_a_reservation_already_running(self):
+        now = datetime(2026, 11, 6, 14, 0, tzinfo=timezone.utc)
+        config = self.warning_config(now, start=(now - timedelta(minutes=5)).isoformat())
+        self.assertEqual("Laser 2 is reserved now by Jane D., until 3:20 PM.",
+                         station.reservation_warning(config, 30, now=now))
+
+    def test_no_warning_about_your_own_reservation(self):
+        now = datetime(2026, 11, 6, 14, 0, tzinfo=timezone.utc)
+        config = self.warning_config(now)
+        self.assertEqual("Jane D.", station.short_name("Jane", "Doe"))
+        self.assertIsNone(station.reservation_warning(config, 30, member="Jane D.", now=now))
+        self.assertIsNotNone(station.reservation_warning(config, 30, member="Sam R.", now=now))
+
+    def test_own_reservation_does_not_hide_the_next_persons(self):
+        now = datetime(2026, 11, 6, 14, 0, tzinfo=timezone.utc)
+        config = self.warning_config(now)
+        config["reservations"].append(dict(config["reservations"][0], member="Sam R.",
+                                           start=(now + timedelta(minutes=25)).isoformat()))
+        self.assertIn("Sam R.", station.reservation_warning(config, 30, member="Jane D.", now=now))
+
+    def test_warning_survives_bad_or_missing_data(self):
+        now = datetime(2026, 11, 6, 14, 0, tzinfo=timezone.utc)
+        self.assertIsNone(station.reservation_warning({"reservations": [{"id": 1}]}, 30, now=now))
+        self.assertIsNone(station.reservation_warning({}, 30, now=now))
+        self.assertIsNone(station.reservation_warning(None, 30, now=now))
+
+    def test_chat_url(self):
+        self.assertEqual("https://x/tool-chat/1", station.chat_url({"chat_url": "https://x/tool-chat/1", "url": "https://x/i/1"}))
+        self.assertEqual("https://x/i/1", station.chat_url({"chat_url": None, "url": "https://x/i/1"}))
+        self.assertEqual("", station.chat_url({}))
+
     def test_status_notices(self):
         config = {"equipment": [
             {"title": "Fine", "status": {"label": "Operational", "level": "ok"}},

@@ -9,6 +9,7 @@ import threading
 import tkinter as tk
 
 import station
+import station_browser
 import theme
 from session_timer import SessionTimerWindow
 
@@ -218,6 +219,9 @@ def draw_status_notices():
     for widget in notices_frame.winfo_children():
         widget.destroy()
     notices = station.status_notices(config)
+    warning = station.reservation_warning(config, station.LOGIN_WARNING_MINUTES)
+    if warning:
+        notices.append(("warn", warning))
     if not notices:
         notices_frame.pack_forget()
         return
@@ -436,6 +440,8 @@ def run_station():
 def start():
     global key, config, website_up
     root.update()
+    # Only left over if the last session never reached its end.
+    threading.Thread(target=station_browser.close_session, daemon=True).start()
     key = station.load_key()
     if not key:
         show_pairing()

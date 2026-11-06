@@ -15,7 +15,6 @@ import sys
 import tkinter as tk
 import traceback
 
-import qrcode
 import requests
 from PIL import Image, ImageTk
 
@@ -67,6 +66,13 @@ class EndingScreen:
         tk.Label(body, text=end_message, bg=theme.PAGE, fg=theme.MUTED, font=ui.font(18), anchor="w",
                  justify="left", wraplength=ui.px(1100)).pack(fill="x", pady=(ui.px(4), ui.px(20)))
 
+        if user_info.get("opened_website"):
+            # Only when no throwaway browser could be used. See station_browser.
+            tk.Label(body, text="You opened the website on this computer. If you logged in, please log out "
+                                "before you finish, so the next person isn't using your account.",
+                     bg=theme.WARNING, fg=theme.INK, font=ui.font(16, True), anchor="w", justify="left",
+                     wraplength=ui.px(1100), padx=ui.px(16), pady=ui.px(10)).pack(fill="x", pady=(0, ui.px(16)))
+
         columns = tk.Frame(body, bg=theme.PAGE)
         columns.pack(fill="x")
         materials = config.get("materials") or []
@@ -83,6 +89,11 @@ class EndingScreen:
         columns.grid_rowconfigure(0, weight=1)
 
         self.build_reset(body)
+        if not ask_rating:
+            self.report_button(body).pack(anchor="w", pady=(ui.px(16), 0))
+
+    def report_button(self, parent):
+        return self.ui.button(parent, "Report a problem", self.show_report, "quiet", size=14)
 
     def section_title(self, parent, text):
         tk.Label(parent, text=text, bg=theme.CARD, fg=theme.INK, font=self.ui.font(19, True), anchor="w",
@@ -105,6 +116,7 @@ class EndingScreen:
         labels.pack(fill="x", pady=(ui.px(8), 0))
         tk.Label(labels, text=f"1 = {LOW_LABEL}", bg=theme.CARD, fg=theme.MUTED, font=ui.font(14)).pack(side=tk.LEFT)
         tk.Label(labels, text=f"5 = {HIGH_LABEL}", bg=theme.CARD, fg=theme.MUTED, font=ui.font(14)).pack(side=tk.LEFT, padx=(ui.px(20), 0))
+        self.report_button(card).pack(anchor="w", pady=(ui.px(18), 0))
         return card
 
     def build_materials(self, parent, materials):
@@ -124,14 +136,22 @@ class EndingScreen:
         return f"{material.get('label', 'Material')}  ·  ${material.get('cost', '')} per {material.get('unit', 'unit')}"
 
     def build_reset(self, parent):
+        """The three ways out, boxed together so it's clear each one finishes up."""
         ui = self.ui
-        row = tk.Frame(parent, bg=theme.PAGE)
-        row.pack(fill="x", pady=(ui.px(28), 0))
-        ui.button(row, "Report a problem", self.show_report, "quiet").pack(side=tk.LEFT)
-        ui.button(row, "I paid", lambda: self.finish("payment_submitted"), "success").pack(side=tk.RIGHT)
-        ui.button(row, "Nothing due", lambda: self.finish("nothing_due")).pack(side=tk.RIGHT, padx=(0, ui.px(12)))
-        # Less prominent button for "left open by someone else"
-        ui.button(row, "Not me", lambda: self.finish("not_me"), "quiet").pack(side=tk.RIGHT, padx=(0, ui.px(12)))
+        card = ui.card(parent, pad=20)
+        card.pack(fill="x", pady=(ui.px(20), 0))
+        words = tk.Frame(card, bg=theme.CARD)
+        words.pack(side=tk.LEFT, fill="x", expand=True)
+        tk.Label(words, text="Finish and return to the login screen", bg=theme.CARD, fg=theme.INK,
+                 font=ui.font(19, True), anchor="w").pack(fill="x")
+        tk.Label(words, text="Choose one when you're done.", bg=theme.CARD, fg=theme.MUTED,
+                 font=ui.font(15), anchor="w").pack(fill="x")
+        buttons = tk.Frame(card, bg=theme.CARD)
+        buttons.pack(side=tk.RIGHT)
+        ui.button(buttons, "I paid", lambda: self.finish("payment_submitted"), "success").pack(side=tk.LEFT)
+        ui.button(buttons, "Nothing due", lambda: self.finish("nothing_due")).pack(side=tk.LEFT, padx=(ui.px(12), 0))
+        # Last and less prominent, for a session someone else left open.
+        ui.button(buttons, "Not me", lambda: self.finish("not_me"), "quiet").pack(side=tk.LEFT, padx=(ui.px(12), 0))
 
     def open_panel(self):
         self.close_panel()
@@ -219,12 +239,7 @@ class EndingScreen:
                      fg=theme.INK, font=ui.font(16)).pack(pady=ui.px(6))
             return
         tk.Label(panel, text="Scan with your phone to pay", bg=theme.CARD, fg=theme.INK, font=ui.font(16, True)).pack()
-        code = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=2)
-        code.add_data(url)
-        code.make(fit=True)
-        size = ui.px(190)
-        image = code.make_image(fill_color="black", back_color="white").convert("RGB")
-        photo = ImageTk.PhotoImage(image.resize((size, size), Image.NEAREST), master=self.root)
+        photo = ui.qr_photo(url, 190)
         label = tk.Label(panel, image=photo, bg=theme.CARD)
         label.image = photo
         label.pack(pady=(ui.px(6), 0))

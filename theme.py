@@ -8,6 +8,7 @@ import subprocess
 import tkinter as tk
 import tkinter.font as tkfont
 
+import qrcode
 from PIL import Image, ImageTk
 
 BRAND = "#8b1919"
@@ -108,6 +109,14 @@ class Theme:
         label.pack(side="right")
         tk.Frame(parent, bg=BRAND, height=self.px(4)).pack(fill="x")
         return label
+
+    def qr_photo(self, url, size):
+        code = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=2)
+        code.add_data(url)
+        code.make(fit=True)
+        image = code.make_image(fill_color="black", back_color="white").convert("RGB")
+        target = self.px(size)
+        return ImageTk.PhotoImage(image.resize((target, target), Image.NEAREST), master=self.root)
 
     def logo(self, parent, width):
         try:

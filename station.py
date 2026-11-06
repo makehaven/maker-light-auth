@@ -55,6 +55,10 @@ STATION_ISSUES = [
 ]
 LONGEST_NOTE = 240
 
+# How far ahead to warn about someone else's reservation.
+LOGIN_WARNING_MINUTES = 60
+SESSION_WARNING_MINUTES = 30
+
 LOG_HEADER = ["Timestamp", "Action", "First Name", "Last Name", "Permission", "Station", "Duration", "Rating", "Details"]
 
 
@@ -285,6 +289,7 @@ def display_signature(config, website_up, now=None):
     """Everything the login screen draws. If this hasn't changed, don't redraw it."""
     shown = {key: value for key, value in (config or {}).items() if key not in ("server_time", "reservations")}
     shown["reservations"] = upcoming_reservations(config, now)
+    shown["reservation_warning"] = reservation_warning(config, LOGIN_WARNING_MINUTES, now=now)
     shown["website_up"] = website_up
     return json.dumps(shown, sort_keys=True)
 
@@ -394,6 +399,51 @@ def send_pending_reports():
     while pending and _post_report(pending[0], key)[0] != REPORT_SAVED:
         pending.pop(0)
     _write_private("pending-reports.json", json.dumps(pending))
+
+
+def chat_url(item):
+    """A tool's chat-only page, or its tool page on a site that doesn't have one."""
+    return item.get("chat_url") or item.get("url") or ""
+
+
+def short_name(first_name, last_name):
+    """A name as the website writes it on reservations, e.g. "Jane D."."""
+    first = (first_name or "").strip()
+    last = (last_name or "").strip()
+    return f"{first} {last[0]}." if first and last else first
+
+
+def reservation_warning(config, within_minutes, member=None, now=None):
+    """Warn about the next reservation someone else holds, or None.
+
+    "member" leaves out their own, matched on the short name a reservation shows.
+    That can't tell two people with the same short name apart, and then the only
+    cost is a missing warning.
+    """
+    now = now or datetime.now().astimezone()
+    soonest = None
+    for reservation in upcoming_reservations(config, now):
+        if member and reservation.get("member") == member:
+            continue
+        try:
+            start = datetime.fromisoformat(reservation["start"])
+            end = datetime.fromisoformat(reservation["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (start - now).total_seconds() > within_minutes * 60:
+            continue
+        if soonest is None or start < soonest[0]:
+            soonest = (start, end, reservation)
+    if soonest is None:
+        return None
+    start, end, reservation = soonest
+    title = reservation.get("equipment") or "This tool"
+    who = reservation.get("member")
+    by = f" by {who}" if who else ""
+    if start <= now:
+        return f"{title} is reserved now{by}, until {_clock(end)}."
+    # A short name like "Jane D." already ends the sentence.
+    return f"{title} is reserved at {_clock(start)}{by}".rstrip(".") + "."
 
 
 def log_event(action, user_info=None, duration="", rating="", details=""):
