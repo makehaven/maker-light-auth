@@ -2,4 +2,6 @@ __pycache__/
 *.pyc
 debug.log
 SessionLog.csv
+SessionLog.txt
 temp_user_data.json
+config.ini

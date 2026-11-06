@@ -1,72 +1,76 @@
-# RFID and Email Access Control Script
+# MakerAuth: access station for a tool or room
 
-This Python-based script (`maker-light-auth.pyw`) facilitates user authentication using RFID or email, interfacing with a Drupal backend to verify access permissions. It provides a graphical user interface (GUI) for user interaction, displaying access statuses promptly.
+`maker-light-auth.pyw` is the full-screen login for a computer that unlocks a tool or room. A member scans an RFID tag or enters an email, the station checks their badge, and a session timer runs until they end it.
 
-## Usage
+**Nothing about a station is configured on the computer.** Every computer runs the same code. What each one does is set on the website, and a one-time pairing code tells a computer which station it is.
 
-Configure the config file for the specific station and materials. Users can log in via serial number or email, which the script will verify against the configured website.
+## Setting up a station
 
-**Tip**: Type "exit" at the user input screen to close the program.
-
-### Station key
-
-The website requires a device key on access lookups. Set `api_key` under `[Login]` in `config.ini` to the key staff issue for MakerAuth stations (see the website's `docs/ops/ACCESS_API_KEYS.md`). If it is missing or wrong, the station stays locked and says "This station's website key is missing or out of date."
-
-## Prerequisites
-
-Ensure your system has:
-
-- **Python 3.x**: Version 3.6 or newer. Download from [python.org](https://www.python.org/downloads/).
-- **Python Libraries**: Install the `requests`, `loguru`, `graypy`, and `qrcode[pil]` libraries for HTTP requests handling and extended functionalities.
-
-## Installation
-
-To set up the script environment, follow these steps:
-
-1. **Install Python**: Download and install Python from [python.org](https://www.python.org/downloads/). Ensure Python is added to your PATH.
-
-2. **Install Dependencies**: Execute the following commands to install required libraries:
+1. On the website, go to `/admin/config/system/access-stations`, add the station (name, source ID, permission, equipment, messages) and click **Pairing code**. Codes last one hour and work once.
+2. On the computer, install Python 3.8 or newer with Tk, then the dependencies:
 
    ```bash
-   pip install requests loguru graypy qrcode[pil]
+   pip install -r requirements.txt
+   ```
 
+   On Ubuntu, also install `python3-tk`.
+3. Run `python maker-light-auth.pyw` (on Windows, `pythonw` hides the console) and enter the code.
 
-Linux Instructions (Ubuntu)
+To start it automatically on Windows, press Win + R, type `shell:startup`, and put a shortcut to the script in that folder for the shared account.
 
-If you're using Linux (e.g., Ubuntu), follow these additional steps:
+Type `exit` at the prompt to close the program. Once a session has started, click **End Session** first.
 
-Ensure Python and Pip are Installed:
+### Replacing or moving a computer
 
-sudo apt update
-sudo apt install python3 python3-pip
+Issue a new pairing code and enter it on the new computer. The old computer keeps working until the code is redeemed, then its key stops working. To cut a computer off immediately, use **Unpair** or disable the station on the website.
 
-Set Up a Virtual Environment (Optional but Recommended):
+## How it works
 
-python3 -m venv venv
-source venv/bin/activate
+| What | Where it comes from |
+|---|---|
+| Permission, station name, messages, ending screen, rating on/off | Station config from the website |
+| Reservations and materials | Station config, fetched when the app starts (so after every session) and every 15 minutes |
+| Access box address | Site-wide setting on the website, sent in the station config |
+| Tool status and maintenance notes | The tool's status on the website, sent in the station config and shown above the login prompt |
+| Which station this is | The saved key |
 
-Install Dependencies:
+**Member lookups** try the building's access box first, then the website. The box's 403 or 404 is final, because the box has already asked the website when its own copy can't answer. If the box can't answer at all, the website is asked. The station's key goes only to the website, never to the box, because lookups to the box are plain HTTP on the LAN.
 
-pip install requests loguru graypy qrcode[pil]
+**During a website outage** the station runs on its saved config. Card logins keep working through the box. Email logins need the website unless the box's copy includes member emails, so the station tells members to use their card. The ending screen uses no network apart from material photos, which it skips if it can't load them.
 
-Run the Script:                         python3 maker-light-auth.pyw                                                                                   
+**Reporting a problem** is available from the session timer and the ending screen. A tool problem goes through the website's equipment report, so it emails staff, posts to Slack and puts the tool in Reported Concern for staff to confirm. A software or computer problem names no tool, so it can't change the tool's status. A station with no linked tool only offers those. During an outage, reports are saved and sent when the website is back.
 
-## Workstation Setup for Shared User Account
-To configure the script for automatic execution on a workstation with a shared user account:
+**The access log.** Every member lookup appears in the website's access log under the station's source ID, with method `MakerAuth`, including lookups answered by the box, which forwards them. Session end, ratings and reset choices are only in this computer's `SessionLog.csv`.
 
-Script Placement: Place maker-light-auth.pyw in a common directory, such as C:\Users\SharedUser\Scripts\.
+The website records each config request as a check-in, so its stations list shows when each computer was last seen and which app version it runs.
 
-Configure Auto Start:
+## Files on each computer
 
-Press Win + R, type shell:startup, and press Enter to open the Startup folder for the current user.
-For all users, use shell:common startup.
-Create a shortcut in the Startup folder pointing to the script's executable.
-Ensure Environment Readiness:
+These live outside the app folder, so updating the code can't touch them. On Windows the folder is `%LOCALAPPDATA%\MakerAuth`; on Linux it is `~/.config/makerauth`.
 
-Install Python and all dependencies for the shared user account.
-Administrative privileges might be necessary for system-wide installations.
-Check Permissions: Verify the shared user account has the necessary permissions to run the script and access network resources.
+| File | Purpose |
+|---|---|
+| `station.key` | This station's key. Treat it like a password. |
+| `station-config.json` | The last config the website sent |
+| `SessionLog.csv` | Sessions, ratings and reset choices on this computer |
+| `pending-reports.json` | Problem reports waiting for the website to come back |
 
-Conduct a Test: Log in to the workstation with the shared user account to test the autostart functionality. Troubleshoot by checking script permissions, dependency installations, and startup configurations.
+## Settings for testing
 
+| Environment variable | Effect |
+|---|---|
+| `MAKERAUTH_WEBSITE_URL` | Use another website, such as a Pantheon test environment |
+| `MAKERAUTH_STATE_DIR` | Keep the key, config and log in another folder |
+| `MAKERAUTH_DEBUG=1` | Show a debug log on screen. It displays member emails, so never leave it on at a station. |
 
+## Tests
+
+```bash
+python -m unittest discover -s tests
+```
+
+## Moving a station from the old `config.ini`
+
+1. Create and pair the station on the website as above. Use the same source ID so its access log stays continuous.
+2. Update the code. `config.ini` is no longer used and can be deleted. If git refuses to update because the file has local edits, save a copy and delete it first.
+3. Check the old `config.ini` first: if `require_usage_input` was `true`, tell whoever is doing the rollout, because the usage input screen has been removed.
