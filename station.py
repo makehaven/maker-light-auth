@@ -19,7 +19,7 @@ from urllib.parse import quote
 import requests
 
 VERSION = "2.0.0"
-WEBSITE_URL = os.environ.get("MAKERAUTH_WEBSITE_URL", "https://www.makehaven.org").rstrip("/")
+DEFAULT_WEBSITE_URL = "https://www.makehaven.org"
 DEBUG = os.environ.get("MAKERAUTH_DEBUG", "") == "1"
 
 # Seconds to wait before giving up, so an outage can't freeze the station. The
@@ -91,6 +91,32 @@ def _write_private(name, text):
         if os.path.exists(tmp):
             os.remove(tmp)
         raise
+
+
+def _website_url():
+    """The real website, unless setup came from a test site or a test says otherwise."""
+    url = os.environ.get("MAKERAUTH_WEBSITE_URL")
+    if not url:
+        try:
+            with open(state_path("website-url.txt"), encoding="utf-8") as handle:
+                url = handle.read().strip()
+        except OSError:
+            pass
+    return (url or DEFAULT_WEBSITE_URL).rstrip("/")
+
+
+WEBSITE_URL = _website_url()
+
+
+def remember_website():
+    """Keep using the website this computer paired with, if it isn't the real one."""
+    if WEBSITE_URL == DEFAULT_WEBSITE_URL:
+        try:
+            os.remove(state_path("website-url.txt"))
+        except OSError:
+            pass
+    else:
+        _write_private("website-url.txt", WEBSITE_URL)
 
 
 def load_key():

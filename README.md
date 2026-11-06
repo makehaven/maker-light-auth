@@ -6,7 +6,19 @@
 
 ## Setting up a station
 
-1. On the website, go to `/admin/config/system/access-stations`, add the station (name, source ID, permission, equipment, messages) and click **Pairing code**. Codes last one hour and work once.
+### Windows: the setup file
+
+1. On the website, go to `/admin/config/system/access-stations`, add the station (name, source ID, permission, equipment, messages) and click **Pairing code**.
+2. On the station, log in to the account it will run under. If the old app is covering the screen, type `exit` at its prompt. Open the same page in a private browser window and click **Download setup file**. You can also download it elsewhere and bring it on a USB stick.
+3. Open the file. If Windows warns about it, choose **More info**, then **Run anyway**. No administrator password is needed.
+
+It installs Python for this account if needed, downloads the app from this repository's `main` branch into `%LOCALAPPDATA%\MakerAuth\app`, pairs the computer, and starts the app when this account logs in. An older copy's start-up items move to `%LOCALAPPDATA%\MakerAuth\old-startup`, and it tells you about anything it can't change itself, such as a scheduled task. If it stops early, because of a failed download for example, the old app is left in place.
+
+The file holds a one-time code that expires in an hour, and downloading again replaces it. To update the app, run a new setup file: the station stays paired, and the last version stays in `app-previous`.
+
+### By hand, or on Linux
+
+1. On the website, click **Pairing code** as above, then **Make pairing code**. Codes last one hour and work once.
 2. On the computer, install Python 3.8 or newer with Tk, then the dependencies:
 
    ```bash
@@ -59,6 +71,7 @@ These live outside the app folder, so updating the code can't touch them. On Win
 | `SessionLog.csv` | Sessions, ratings and reset choices on this computer |
 | `pending-reports.json` | Problem reports waiting for the website to come back |
 | `browser-session` | The temporary browser profile, deleted when a session ends |
+| `website-url.txt` | Only if set up from a test website: the website to keep using |
 
 ## Settings for testing
 
@@ -76,6 +89,8 @@ python -m unittest discover -s tests
 ```
 
 ## Moving a station from the old `config.ini`
+
+The setup file handles the steps below on Windows and warns about the old `config.ini`. Delete the old app folder once the station works, because its `config.ini` holds an old key.
 
 1. Create and pair the station on the website as above. Use the same source ID so its access log stays continuous.
 2. Update the code. `config.ini` is no longer used and can be deleted. If git refuses to update because the file has local edits, save a copy and delete it first.
